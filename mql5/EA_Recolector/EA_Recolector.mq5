@@ -1,0 +1,291 @@
+//+------------------------------------------------------------------+
+//|                                              EA_Recolector.mq5   |
+//|  Lee el estado de la cuenta y lo escribe en la carpeta Common.   |
+//|  No opera. No sale a internet. No guarda credenciales.           |
+//|  Un gráfico por terminal.                                        |
+//+------------------------------------------------------------------+
+#property copyright "Centro de Monitoreo MT5"
+#property version   "1.00"
+#property strict
+
+input int IntervaloSegundos = 5; // cada cuánto escribe y revisa órdenes de descarga
+
+#define CARPETA "MonitoreoMT5\\"
+
+//+------------------------------------------------------------------+
+//| Utilidades                                                       |
+//+------------------------------------------------------------------+
+string JsonEscape(string s)
+  {
+   StringReplace(s, "\\", "\\\\");
+   StringReplace(s, "\"", "\\\"");
+   StringReplace(s, "\n", " ");
+   StringReplace(s, "\r", " ");
+   return s;
+  }
+
+string IsoTime(datetime t)
+  {
+   string s = TimeToString(t, TIME_DATE | TIME_SECONDS);
+   StringReplace(s, ".", "-");
+   StringReplace(s, " ", "T");
+   return s + "Z";
+  }
+
+string LoginStr()
+  {
+   return IntegerToString((long)AccountInfoInteger(ACCOUNT_LOGIN));
+  }
+
+// Escribe contenido UTF-8, sobrescribiendo el archivo.
+void EscribirTexto(string archivo, string contenido)
+  {
+   int handle = FileOpen(archivo, FILE_WRITE | FILE_BIN | FILE_COMMON);
+   if(handle == INVALID_HANDLE)
+     {
+      Print("No se pudo escribir ", archivo, " error ", GetLastError());
+      return;
+     }
+   uchar bytes[];
+   int n = StringToCharArray(contenido, bytes, 0, WHOLE_ARRAY, CP_UTF8);
+   if(n > 1)
+      FileWriteArray(handle, bytes, 0, n - 1); // sin el terminador nulo
+   FileClose(handle);
+  }
+
+// Agrega una línea UTF-8 al final del archivo (lo crea si no existe).
+void AgregarLinea(string archivo, string linea)
+  {
+   int handle = FileOpen(archivo, FILE_READ | FILE_WRITE | FILE_BIN | FILE_COMMON);
+   if(handle == INVALID_HANDLE)
+     {
+      Print("No se pudo abrir ", archivo, " error ", GetLastError());
+      return;
+     }
+   FileSeek(handle, 0, SEEK_END);
+   uchar bytes[];
+   int n = StringToCharArray(linea + "\n", bytes, 0, WHOLE_ARRAY, CP_UTF8);
+   if(n > 1)
+      FileWriteArray(handle, bytes, 0, n - 1);
+   FileClose(handle);
+  }
+
+//+------------------------------------------------------------------+
+//| Estado de la cuenta                                              |
+//+------------------------------------------------------------------+
+void EscribirEstado()
+  {
+   string json = "{"
+      + "\"cuenta_id\":" + LoginStr() + ","
+      + "\"broker\":\"" + JsonEscape(AccountInfoString(ACCOUNT_COMPANY)) + "\","
+      + "\"saldo\":" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + ","
+      + "\"equity\":" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) + ","
+      + "\"flotante\":" + DoubleToString(AccountInfoDouble(ACCOUNT_PROFIT), 2) + ","
+      + "\"margen_libre\":" + DoubleToString(AccountInfoDouble(ACCOUNT_MARGIN_FREE), 2) + ","
+      + "\"algo_trading\":" + (TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) ? "true" : "false") + ","
+      + "\"visto_en\":\"" + IsoTime(TimeGMT()) + "\""
+      + "}";
+   EscribirTexto(CARPETA + "estado_" + LoginStr() + ".json", json);
+  }
+
+//+------------------------------------------------------------------+
+//| Posiciones abiertas                                              |
+//+------------------------------------------------------------------+
+void EscribirPosiciones()
+  {
+   string items = "";
+   int total = PositionsTotal();
+   for(int i = 0; i < total; i++)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0)
+         continue;
+      if(items != "")
+         items += ",";
+      string tipo = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) ? "compra" : "venta";
+      items += "{"
+         + "\"ticket\":" + IntegerToString((long)ticket) + ","
+         + "\"simbolo\":\"" + JsonEscape(PositionGetString(POSITION_SYMBOL)) + "\","
+         + "\"tipo\":\"" + tipo + "\","
+         + "\"volumen\":" + DoubleToString(PositionGetDouble(POSITION_VOLUME), 2) + ","
+         + "\"apertura\":" + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), 5) + ","
+         + "\"sl\":" + DoubleToString(PositionGetDouble(POSITION_SL), 5) + ","
+         + "\"tp\":" + DoubleToString(PositionGetDouble(POSITION_TP), 5) + ","
+         + "\"beneficio\":" + DoubleToString(PositionGetDouble(POSITION_PROFIT), 2) + ","
+         + "\"abierta_en\":\"" + IsoTime((datetime)PositionGetInteger(POSITION_TIME)) + "\""
+         + "}";
+     }
+   string json = "{\"cuenta_id\":" + LoginStr() + ",\"posiciones\":[" + items + "]}";
+   EscribirTexto(CARPETA + "posiciones_" + LoginStr() + ".json", json);
+  }
+
+//+------------------------------------------------------------------+
+//| Operaciones cerradas: solo lo nuevo desde el último envío        |
+//+------------------------------------------------------------------+
+void EscribirOperacionesNuevas()
+  {
+   string nombreCursor = "MonitoreoMT5_UltimoCierre_" + LoginStr();
+   datetime desde = 0;
+   if(GlobalVariableCheck(nombreCursor))
+      desde = (datetime)GlobalVariableGet(nombreCursor);
+
+   if(!HistorySelect(desde, TimeCurrent() + 1))
+      return;
+
+   datetime maxCierre = desde;
+   int total = HistoryDealsTotal();
+   for(int i = 0; i < total; i++)
+     {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(ticket == 0)
+         continue;
+
+      // Solo cierres de posiciones (no depósitos, retiros, comisiones sueltas).
+      if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(ticket, DEAL_ENTRY) != DEAL_ENTRY_OUT)
+         continue;
+      ENUM_DEAL_TYPE tipoDeal = (ENUM_DEAL_TYPE)HistoryDealGetInteger(ticket, DEAL_TYPE);
+      if(tipoDeal != DEAL_TYPE_BUY && tipoDeal != DEAL_TYPE_SELL)
+         continue;
+
+      datetime cierre = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
+      if(cierre <= desde)
+         continue;
+
+      string tipo = (tipoDeal == DEAL_TYPE_BUY) ? "venta" : "compra"; // el deal de cierre es el tipo contrario a la apertura
+      double volumen = HistoryDealGetDouble(ticket, DEAL_VOLUME);
+      double salida = HistoryDealGetDouble(ticket, DEAL_PRICE);
+      double beneficio = HistoryDealGetDouble(ticket, DEAL_PROFIT);
+      double comision = HistoryDealGetDouble(ticket, DEAL_COMMISSION) + HistoryDealGetDouble(ticket, DEAL_SWAP);
+      long posicionId = (long)HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
+      string simbolo = HistoryDealGetString(ticket, DEAL_SYMBOL);
+
+      // Precio y hora de apertura: primer deal de la misma posición (DEAL_ENTRY_IN).
+      double entrada = 0;
+      datetime abierta = 0;
+      if(HistorySelectByPosition(posicionId))
+        {
+         int nDeals = HistoryDealsTotal();
+         for(int j = 0; j < nDeals; j++)
+           {
+            ulong t2 = HistoryDealGetTicket(j);
+            if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(t2, DEAL_ENTRY) == DEAL_ENTRY_IN)
+              {
+               entrada = HistoryDealGetDouble(t2, DEAL_PRICE);
+               abierta = (datetime)HistoryDealGetInteger(t2, DEAL_TIME);
+               break;
+              }
+           }
+        }
+      HistorySelect(desde, TimeCurrent() + 1); // restaurar el conjunto de deals tras la consulta por posición
+
+      string json = "{"
+         + "\"cuenta_id\":" + LoginStr() + ","
+         + "\"ticket\":" + IntegerToString((long)ticket) + ","
+         + "\"simbolo\":\"" + JsonEscape(simbolo) + "\","
+         + "\"tipo\":\"" + tipo + "\","
+         + "\"volumen\":" + DoubleToString(volumen, 2) + ","
+         + "\"entrada\":" + DoubleToString(entrada, 5) + ","
+         + "\"salida\":" + DoubleToString(salida, 5) + ","
+         + "\"beneficio\":" + DoubleToString(beneficio, 2) + ","
+         + "\"comision\":" + DoubleToString(comision, 2) + ","
+         + "\"abierta_en\":\"" + IsoTime(abierta) + "\","
+         + "\"cerrada_en\":\"" + IsoTime(cierre) + "\""
+         + "}";
+      AgregarLinea(CARPETA + "operaciones_" + LoginStr() + ".jsonl", json);
+
+      if(cierre > maxCierre)
+         maxCierre = cierre;
+     }
+
+   if(maxCierre > desde)
+      GlobalVariableSet(nombreCursor, (double)maxCierre);
+  }
+
+//+------------------------------------------------------------------+
+//| Inventario de gráficos abiertos (qué bots hay cargados)          |
+//+------------------------------------------------------------------+
+void EscribirGraficos()
+  {
+   string items = "";
+   long chartId = ChartFirst();
+   while(chartId >= 0)
+     {
+      if(items != "")
+         items += ",";
+      items += "{"
+         + "\"grafico_id\":" + IntegerToString(chartId) + ","
+         + "\"simbolo\":\"" + JsonEscape(ChartSymbol(chartId)) + "\","
+         + "\"periodo\":\"" + EnumToString((ENUM_TIMEFRAMES)ChartPeriod(chartId)) + "\""
+         + "}";
+      chartId = ChartNext(chartId);
+     }
+   string json = "{\"cuenta_id\":" + LoginStr() + ",\"graficos\":[" + items + "]}";
+   EscribirTexto(CARPETA + "graficos_" + LoginStr() + ".json", json);
+  }
+
+//+------------------------------------------------------------------+
+//| Último recurso: cerrar el gráfico de un bot que no responda.     |
+//| El Agente escribe una línea "id|grafico_id" por orden pendiente  |
+//| en ordenes_pendientes_<login>.txt. Acá se confirma en            |
+//| ordenes_hechas_<login>.txt qué ids ya se ejecutaron.             |
+//+------------------------------------------------------------------+
+void ProcesarOrdenesDescargar()
+  {
+   string archivo = CARPETA + "ordenes_pendientes_" + LoginStr() + ".txt";
+   if(!FileIsExist(archivo, FILE_COMMON))
+      return;
+
+   int handle = FileOpen(archivo, FILE_READ | FILE_TXT | FILE_COMMON | FILE_ANSI);
+   if(handle == INVALID_HANDLE)
+      return;
+
+   while(!FileIsEnding(handle))
+     {
+      string linea = FileReadString(handle);
+      if(StringLen(linea) == 0)
+         continue;
+
+      string partes[];
+      int n = StringSplit(linea, '|', partes);
+      if(n < 2)
+         continue;
+
+      string id = partes[0];
+      long graficoId = (long)StringToInteger(partes[1]);
+      if(ChartClose(graficoId))
+         AgregarLinea(CARPETA + "ordenes_hechas_" + LoginStr() + ".txt", id);
+     }
+   FileClose(handle);
+  }
+
+//+------------------------------------------------------------------+
+//| Ciclo principal                                                  |
+//+------------------------------------------------------------------+
+void CicloCompleto()
+  {
+   EscribirEstado();
+   EscribirPosiciones();
+   EscribirOperacionesNuevas();
+   EscribirGraficos();
+   ProcesarOrdenesDescargar();
+  }
+
+int OnInit()
+  {
+   if(!FolderCreate(CARPETA, FILE_COMMON))
+      Print("Aviso: no se pudo crear/confirmar la carpeta ", CARPETA, " error ", GetLastError());
+
+   CicloCompleto();
+   EventSetTimer(IntervaloSegundos);
+   return(INIT_SUCCEEDED);
+  }
+
+void OnDeinit(const int reason)
+  {
+   EventKillTimer();
+  }
+
+void OnTimer()
+  {
+   CicloCompleto();
+  }

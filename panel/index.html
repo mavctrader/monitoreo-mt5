@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Centro de Monitoreo MT5</title>
+<link rel="stylesheet" href="assets/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+<section id="vista-login">
+  <form id="form-login">
+    <h1>Centro de Monitoreo MT5</h1>
+    <input type="email" id="email" placeholder="Email" autocomplete="username" required>
+    <input type="password" id="password" placeholder="Contraseña" autocomplete="current-password" required>
+    <button type="submit">Entrar</button>
+    <p id="error-login" class="error"></p>
+  </form>
+</section>
+
+<section id="vista-panel" hidden>
+  <header>
+    <h1>Centro de Monitoreo MT5</h1>
+    <button id="btn-salir">Salir</button>
+  </header>
+  <main id="lista-cuentas">
+    <p class="aviso">Cargando cuentas...</p>
+  </main>
+</section>
+
+<template id="plantilla-cuenta">
+  <article class="cuenta">
+    <header class="cuenta-header">
+      <div>
+        <span class="cuenta-alias"></span>
+        <span class="cuenta-login"></span>
+        <span class="cuenta-broker"></span>
+      </div>
+      <div class="cuenta-indicadores">
+        <span class="indicador algo-trading" title="Algo Trading"></span>
+        <span class="indicador señal-vida" title="Señal de vida"></span>
+      </div>
+    </header>
+
+    <div class="cuenta-metricas">
+      <div><label>Saldo</label><span class="m-saldo"></span></div>
+      <div><label>Equity</label><span class="m-equity"></span></div>
+      <div><label>Flotante</label><span class="m-flotante"></span></div>
+      <div><label>Margen libre</label><span class="m-margen"></span></div>
+      <div><label>Drawdown restante</label><span class="m-drawdown"></span></div>
+    </div>
+
+    <div class="cuenta-seccion">
+      <h3>Bots</h3>
+      <div class="lista-bots"></div>
+    </div>
+
+    <div class="cuenta-seccion">
+      <h3>Posiciones abiertas</h3>
+      <table class="tabla-posiciones">
+        <thead><tr><th>Símbolo</th><th>Tipo</th><th>Vol</th><th>Apertura</th><th>SL</th><th>TP</th><th>Beneficio</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="sin-posiciones aviso" hidden>Sin posiciones abiertas.</p>
+    </div>
+
+    <details class="cuenta-seccion">
+      <summary>Reglas de la prop firm</summary>
+      <form class="form-reglas">
+        <label>Saldo inicial <input type="number" step="0.01" name="saldo_inicial"></label>
+        <label>Pérdida diaria máx. <input type="number" step="0.01" name="perdida_diaria_max"></label>
+        <label>Drawdown máx. <input type="number" step="0.01" name="drawdown_max"></label>
+        <label>Objetivo fase <input type="number" step="0.01" name="objetivo_fase"></label>
+        <label>Hora de reset <input type="time" name="hora_reset"></label>
+        <label>Zona horaria <input type="text" name="zona_horaria" placeholder="America/Panama"></label>
+        <button type="submit">Guardar reglas</button>
+        <span class="guardado-ok" hidden>Guardado.</span>
+      </form>
+    </details>
+  </article>
+</template>
+
+<template id="plantilla-bot">
+  <div class="bot">
+    <span class="bot-nombre"></span>
+    <span class="bot-confirmado"></span>
+    <div class="bot-botones">
+      <button class="btn-arrancar">Arrancar</button>
+      <button class="btn-parar">Parar</button>
+      <button class="btn-descargar" title="Último recurso: cierra el gráfico">Descargar</button>
+    </div>
+  </div>
+</template>
+
+<script src="assets/panel.js"></script>
+</body>
+</html>

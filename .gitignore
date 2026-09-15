@@ -1,0 +1,14 @@
+# Python (agente)
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# MQL5 compiled
+*.ex5
+
+# Editor/OS
+.vscode/
+.DS_Store
+Thumbs.db
