@@ -202,14 +202,44 @@ void EscribirOperacionesNuevas()
   }
 
 //+------------------------------------------------------------------+
-//| Inventario de gráficos abiertos (qué bots hay cargados)          |
+//| Qué EA hay en un gráfico y a qué canal de copia apunta.          |
+//|                                                                    |
+//| MQL5 no deja consultar eso directamente, así que se guarda la      |
+//| plantilla del gráfico (que incluye el EA y sus parámetros), se     |
+//| leen SOLO el nombre del EA y el archivo master.jsonN, y se borra.  |
+//| El resto de los parámetros no se lee ni se guarda: ahí van cosas   |
+//| como la contraseña del copiador.                                   |
 //+------------------------------------------------------------------+
+// Deja la plantilla de cada gráfico en disco para que el Agente pueda ver
+// qué EA hay puesto y con qué parámetros. El EA no la puede leer él mismo:
+// MT5 la guarda en MQL5\Profiles\Templates\ y desde MQL5 solo se puede leer
+// MQL5\Files\. El Agente (Python) sí llega, la lee y la borra.
+void GuardarPlantilla(long chartId)
+  {
+   ChartSaveTemplate(chartId, "MonitoreoMT5_tpl_" + IntegerToString(chartId));
+  }
+
+//+------------------------------------------------------------------+
+//| Inventario de gráficos abiertos (qué bots hay cargados)          |
+//|                                                                    |
+//| Guardar la plantilla es una operación de disco, así que se hace    |
+//| una vez por minuto y no en cada pasada.                            |
+//+------------------------------------------------------------------+
+#define INTERVALO_PLANTILLAS 60 // segundos
+
+datetime g_plantillas_en = 0;
+
 void EscribirGraficos()
   {
+   bool guardarPlantillas = (TimeCurrent() - g_plantillas_en >= INTERVALO_PLANTILLAS);
+
    string items = "";
    long chartId = ChartFirst();
    while(chartId >= 0)
      {
+      if(guardarPlantillas)
+         GuardarPlantilla(chartId);
+
       if(items != "")
          items += ",";
       items += "{"
@@ -219,6 +249,10 @@ void EscribirGraficos()
          + "}";
       chartId = ChartNext(chartId);
      }
+
+   if(guardarPlantillas)
+      g_plantillas_en = TimeCurrent();
+
    string json = "{\"cuenta_id\":" + LoginStr() + ",\"graficos\":[" + items + "]}";
    EscribirTexto(CARPETA + "graficos_" + LoginStr() + ".json", json);
   }

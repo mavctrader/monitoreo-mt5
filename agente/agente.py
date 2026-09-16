@@ -30,8 +30,9 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from supabase import Client, create_client
@@ -119,15 +120,78 @@ def id_cuenta(cliente: Client, login: str, broker: str) -> str:
     return creada.data[0]["id"]
 
 
-def subir_estado(cliente: Client, cuenta_id: str, estado: dict):
+# cuenta_id -> (equity_inicio_dia, limite_del_dia_en_utc). Se siembra al
+# arrancar leyendo lo que ya había en Supabase, para no perder el punto de
+# referencia del día si el agente se reinicia a mitad de jornada.
+cache_inicio_dia: dict = {}
+
+
+def sembrar_cache_inicio_dia(cliente: Client):
+    filas = cliente.table("estado").select("cuenta_id,equity_inicio_dia,equity_inicio_dia_en").execute()
+    for f in filas.data:
+        if f["equity_inicio_dia"] is not None and f["equity_inicio_dia_en"] is not None:
+            cache_inicio_dia[f["cuenta_id"]] = (
+                f["equity_inicio_dia"],
+                datetime.fromisoformat(f["equity_inicio_dia_en"]),
+            )
+
+
+def zona_de(nombre):
+    """UTC no pasa por zoneinfo: Windows no trae la base de zonas horarias
+    (sin el paquete tzdata, ZoneInfo('UTC') revienta)."""
+    if not nombre or nombre.strip().upper() == "UTC":
+        return timezone.utc
+    try:
+        return ZoneInfo(nombre)
+    except Exception:
+        print(f"[zona] '{nombre}' no disponible, se usa UTC")
+        return timezone.utc
+
+
+def limite_dia_actual(ahora_utc: datetime, hora_reset, zona_horaria) -> datetime:
+    """Última hora de reset ya cruzada, en UTC. Sin reglas, asume 00:00 UTC."""
+    ahora_local = ahora_utc.astimezone(zona_de(zona_horaria))
+    if hora_reset:
+        h, m = (int(x) for x in str(hora_reset).split(":")[:2])
+    else:
+        h, m = 0, 0
+    limite_local = ahora_local.replace(hour=h, minute=m, second=0, microsecond=0)
+    if ahora_local < limite_local:
+        limite_local -= timedelta(days=1)
+    return limite_local.astimezone(timezone.utc)
+
+
+def actualizar_inicio_dia(cuenta_id: str, equity: float, reglas):
+    """Devuelve (equity_inicio_dia, limite) vigente, actualizando la caché
+    si se cruzó una nueva hora de reset desde la última vez."""
+    ahora = datetime.now(timezone.utc)
+    hora_reset = reglas.get("hora_reset") if reglas else None
+    zona = reglas.get("zona_horaria") if reglas else None
+    limite = limite_dia_actual(ahora, hora_reset, zona)
+
+    anterior = cache_inicio_dia.get(cuenta_id)
+    if anterior is None or anterior[1] < limite:
+        cache_inicio_dia[cuenta_id] = (equity, limite)
+        return equity, limite
+    return anterior
+
+
+def subir_estado(cliente: Client, cuenta_id: str, estado: dict, reglas=None):
+    equity = estado.get("equity")
+    equity_inicio_dia, limite = (None, None)
+    if equity is not None:
+        equity_inicio_dia, limite = actualizar_inicio_dia(cuenta_id, equity, reglas)
+
     cliente.table("estado").upsert({
         "cuenta_id": cuenta_id,
         "saldo": estado.get("saldo"),
-        "equity": estado.get("equity"),
+        "equity": equity,
         "flotante": estado.get("flotante"),
         "margen_libre": estado.get("margen_libre"),
         "algo_trading": estado.get("algo_trading"),
         "visto_en": estado.get("visto_en"),
+        "equity_inicio_dia": equity_inicio_dia,
+        "equity_inicio_dia_en": limite.isoformat() if limite else None,
     }, on_conflict="cuenta_id").execute()
 
 
@@ -199,6 +263,7 @@ def sincronizar_bots(cliente: Client, cuenta_id: str, login: str):
             "grafico_id": g["grafico_id"],
             "simbolo": g.get("simbolo"),
             "periodo": g.get("periodo"),
+            "nombre": (cache_plantillas.get(g.get("grafico_id")) or {}).get("nombre_ea"),
         }
         for g in datos.get("graficos", [])
     ]
@@ -206,7 +271,145 @@ def sincronizar_bots(cliente: Client, cuenta_id: str, login: str):
         cliente.table("bots").upsert(filas, on_conflict="cuenta_id,grafico_id").execute()
 
 
-def sincronizar_datos(cliente: Client, cache_cuentas: dict):
+# cuenta_id -> (rol, grupo, simbolo) ya escrito, para no repetir el update.
+cache_pares: dict = {}
+
+# grafico_id -> datos del EA leídos de su plantilla. Se conservan aunque la
+# plantilla se borre, hasta que el recolector la vuelva a escribir.
+cache_plantillas: dict = {}
+
+CARPETA_TERMINALES = Path(os.environ["APPDATA"]) / "MetaQuotes" / "Terminal"
+PATRON_TPL = re.compile(r"MonitoreoMT5_tpl_(\d+)\.tpl$", re.IGNORECASE)
+PATRON_SIMBOLO = re.compile(r"[A-Za-z0-9._,:]{1,40}$")
+PATRON_MAPEO = re.compile(r"[A-Za-z0-9._]{2,20}:[A-Za-z0-9._]{2,20}$")
+
+
+def grupo_desde_canal(canal):
+    """'master.json1' -> 'Master 1'. Sin número, 'Master'."""
+    m = re.search(r"master\.json(\d*)\s*$", canal or "", re.IGNORECASE)
+    if not m:
+        return None
+    numero = m.group(1)
+    return f"Master {numero}" if numero else "Master"
+
+
+def leer_texto_plantilla(ruta: Path):
+    """MT5 guarda las plantillas en UTF-16; algunas builds en UTF-8."""
+    datos = ruta.read_bytes()
+    if datos[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        texto = datos.decode("utf-16", errors="ignore")
+    else:
+        texto = datos.decode("utf-8", errors="ignore")
+    return texto.replace("\x00", "")
+
+
+def parsear_plantilla(ruta: Path):
+    """Del archivo de plantilla saca SOLO el nombre del EA, el archivo de
+    canal (master.jsonN) y el símbolo que opera. El resto de los parámetros
+    del EA -contraseñas incluidas- no se lee ni se guarda en ningún lado."""
+    try:
+        texto = leer_texto_plantilla(ruta)
+    except OSError:
+        return None
+
+    dentro = False
+    nombre = canal = simbolo = mapeo = None
+    anterior = ""
+    for linea in texto.splitlines():
+        linea = linea.strip()
+        if "<expert>" in linea:
+            dentro = True
+            continue
+        if "</expert>" in linea:
+            break
+        if not dentro:
+            continue
+
+        # El nombre del EA viene como path=Experts\Hobbiecode_CT_Master.ex5
+        if nombre is None and linea.startswith("path="):
+            nombre = linea.split("\\")[-1].rsplit(".", 1)[0]
+
+        valor = linea.split("=", 1)[1].strip() if "=" in linea else ""
+
+        # El mapeo del slave ("NDX100:NAS100.x") es inconfundible por su forma.
+        if mapeo is None and PATRON_MAPEO.match(valor):
+            mapeo = valor.split(":")[-1]
+
+        pos = linea.find("master.json")
+        if canal is None and pos >= 0:
+            canal = linea[pos:].strip()
+            # En el master el símbolo va en el parámetro justo anterior.
+            previo = anterior.split("=", 1)[1].strip() if "=" in anterior else ""
+            if PATRON_SIMBOLO.match(previo):
+                simbolo = previo.split(":")[-1]
+
+        anterior = linea
+
+    if not nombre and not canal:
+        return None
+    return {
+        "nombre_ea": nombre or "",
+        "canal": canal or "",
+        "simbolo_operado": mapeo or simbolo or "",
+    }
+
+
+def leer_plantillas():
+    """Recorre las plantillas que dejó el recolector en todos los terminales,
+    las interpreta y las borra (el recolector las vuelve a escribir)."""
+    for ruta in CARPETA_TERMINALES.glob("*/MQL5/Profiles/Templates/MonitoreoMT5_tpl_*.tpl"):
+        m = PATRON_TPL.search(ruta.name)
+        if not m:
+            continue
+        datos = parsear_plantilla(ruta)
+        if datos:
+            cache_plantillas[int(m.group(1))] = datos
+        try:
+            ruta.unlink()
+        except OSError:
+            pass
+
+
+def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
+    """Arma y desarma el par master/slave siguiendo lo que hay en el MT5: el
+    recolector reporta qué EA tiene cada gráfico y a qué archivo master.jsonN
+    apunta, y las dos puntas del par comparten ese archivo. Si se retiran los
+    EAs de copia, el par se deshace."""
+    datos = leer_json(COMUN / f"graficos_{login}.json")
+    if not datos or not datos.get("graficos"):
+        return  # sin inventario de gráficos no se concluye nada
+
+    rol = grupo = simbolo = None
+    for g in datos["graficos"]:
+        ea = cache_plantillas.get(g.get("grafico_id"))
+        if not ea:
+            continue
+        posible = grupo_desde_canal(ea["canal"])
+        if not posible:
+            continue
+        nombre = ea["nombre_ea"].lower()
+        if "slave" in nombre:
+            rol, grupo = "slave", posible
+        elif "master" in nombre:
+            rol, grupo = "master", posible
+        else:
+            continue
+        simbolo = ea["simbolo_operado"] or None
+        break
+
+    if cache_pares.get(cuenta_id) == (rol, grupo, simbolo):
+        return
+
+    cambios = {"rol": rol, "grupo": grupo}
+    if simbolo:
+        cambios["simbolo_principal"] = simbolo
+    cliente.table("cuentas").update(cambios).eq("id", cuenta_id).execute()
+    cache_pares[cuenta_id] = (rol, grupo, simbolo)
+    print(f"[par] cuenta {login}: {rol or 'sin par'} {grupo or ''} {simbolo or ''}".strip())
+
+
+def sincronizar_datos(cliente: Client, cache_cuentas: dict, cache_reglas: dict):
+    leer_plantillas()
     for login in logins_detectados():
         estado = leer_json(COMUN / f"estado_{login}.json")
         if estado is None:
@@ -216,10 +419,11 @@ def sincronizar_datos(cliente: Client, cache_cuentas: dict):
             cache_cuentas[login] = id_cuenta(cliente, login, estado.get("broker", ""))
         cuenta_id = cache_cuentas[login]
 
-        subir_estado(cliente, cuenta_id, estado)
+        subir_estado(cliente, cuenta_id, estado, cache_reglas.get(cuenta_id))
         sincronizar_posiciones(cliente, cuenta_id, login)
         sincronizar_operaciones(cliente, cuenta_id, login)
         sincronizar_bots(cliente, cuenta_id, login)
+        sincronizar_par(cliente, cuenta_id, login)
 
 
 def leer_reglas(cliente: Client, cache_cuentas: dict) -> dict:
@@ -328,7 +532,7 @@ def vigilar_limites(cliente: Client, cache_cuentas: dict, cache_reglas: dict, cr
         ya_avisado = cruzados.get(cuenta_id, False)
 
         if cruzo and not ya_avisado:
-            subir_estado(cliente, cuenta_id, estado)
+            subir_estado(cliente, cuenta_id, estado, reglas)
             cruzados[cuenta_id] = True
         elif not cruzo and ya_avisado:
             cruzados[cuenta_id] = False
@@ -344,6 +548,8 @@ def principal():
     cache_reglas: dict = {}
     cruzados: dict = {}
 
+    sembrar_cache_inicio_dia(cliente)
+
     t_datos = t_ordenes = 0.0
 
     print(f"Agente conectado. Leyendo {COMUN}")
@@ -353,7 +559,7 @@ def principal():
 
         if ahora - t_datos >= INTERVALO_DATOS:
             try:
-                sincronizar_datos(cliente, cache_cuentas)
+                sincronizar_datos(cliente, cache_cuentas, cache_reglas)
                 cache_reglas = leer_reglas(cliente, cache_cuentas)
             except Exception as e:
                 print(f"[datos] error: {e}")

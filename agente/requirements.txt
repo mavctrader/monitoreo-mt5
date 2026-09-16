@@ -1,2 +1,5 @@
 supabase>=2.3.0
 python-dotenv>=1.0.0
+# Windows no trae la base de zonas horarias IANA; sin esto zoneinfo solo
+# funciona para UTC (que el agente resuelve aparte, sin zoneinfo).
+tzdata>=2024.1

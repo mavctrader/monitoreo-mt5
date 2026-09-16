@@ -12,3 +12,9 @@ venv/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Scripts e informes con datos reales de cuentas (números de cuenta, saldos).
+# El repositorio es público: acá va todo lo que no debería salir de la máquina.
+supabase/datos/
+docs/Estado Actual*.pdf
+agente/agente.log
