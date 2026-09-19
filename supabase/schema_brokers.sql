@@ -41,8 +41,12 @@ begin
   end if;
 end $$;
 
+-- Tradeslide no es una prop firm: es el broker detrás de Darwinex Zero. Va
+-- igual en esta tabla porque la columna, en la práctica, es "cómo se llama
+-- el lugar donde está la cuenta", y es lo que se muestra en el panel.
 insert into brokers_prop_firm (broker, prop_firm) values
   ('FundedNext Ltd', 'FundedNext'),
   ('Goat Funded Ltd.', 'Goat Funded Trader'),
-  ('Five Percent Online Ltd', 'The5ers')
+  ('Five Percent Online Ltd', 'The5ers'),
+  ('Tradeslide Trading Tech Limited', 'Darwinex Zero')
 on conflict (broker) do update set prop_firm = excluded.prop_firm;

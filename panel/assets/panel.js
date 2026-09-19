@@ -480,10 +480,13 @@ function renderizarCuenta(cuenta) {
   const estado = cuenta.estado; // 1:1
   const reglas = cuenta.reglas; // 1:1
 
+  // En una cuenta de fondeo el encabezado es "fase | símbolo". Cuando no hay
+  // fase -las de capital inversor no la tienen- se usa el nombre de la
+  // plataforma, que es como la reconocés: "Darwinex Zero", no el número.
   const partesTitulo = [cuenta.fase, cuenta.simbolo_principal].filter(Boolean);
   nodo.querySelector(".cuenta-alias").textContent = partesTitulo.length
     ? partesTitulo.join(" | ")
-    : (cuenta.alias || `Cuenta ${cuenta.login}`);
+    : (cuenta.alias || cuenta.prop_firm || `Cuenta ${cuenta.login}`);
   nodo.querySelector(".cuenta-login").textContent = `#${cuenta.login}`;
   nodo.querySelector(".cuenta-broker").textContent = cuenta.broker || "";
 
