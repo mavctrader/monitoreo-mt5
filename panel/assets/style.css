@@ -379,28 +379,41 @@ details summary { cursor: pointer; }
 }
 .cuenta-activos .aviso-chico { color: var(--texto-tenue); font-size: 0.72rem; margin: 0; }
 
-/* activo | aporte | barra | costo */
-.fila-activo {
-  display: grid;
-  grid-template-columns: 1fr auto 56px auto;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.74rem;
-  padding: 0.12rem 0;
+.cuenta-activos { font-variant-numeric: tabular-nums; }
+
+/* Cada activo es un bloque: nombre y aporte arriba, la barra del aporte,
+   y debajo el costo desglosado igual que en el costo del par. */
+.activo-bloque {
+  padding-bottom: 0.45rem;
+  margin-bottom: 0.45rem;
+  border-bottom: 1px solid var(--borde);
 }
-.fila-activo .activo-nombre { color: var(--texto-tenue); }
-.fila-activo .activo-neto { font-variant-numeric: tabular-nums; }
-.fila-activo .activo-costo {
-  color: var(--texto-tenue);
-  font-variant-numeric: tabular-nums;
+.activo-bloque:last-of-type { border-bottom: none; }
+.activo-bloque .costo-nombre { color: var(--texto); font-weight: 500; }
+.activo-bloque .barra-aporte { margin-bottom: 0.35rem; }
+.activo-costo-total { font-size: 0.68rem; margin-bottom: 0.2rem; }
+.activo-costo-total .etiqueta { color: var(--texto-tenue); }
+.activo-costo-total .costo-total { color: var(--texto-tenue); }
+
+.activo-drawdown {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
   font-size: 0.68rem;
+  margin-top: 0.3rem;
 }
-.fila-activo-total {
+.activo-drawdown .etiqueta { color: var(--texto-tenue); margin-right: auto; }
+.activo-drawdown .drawdown-fecha { color: var(--texto-tenue); }
+
+.activo-total {
+  display: flex;
+  justify-content: space-between;
   border-top: 1px solid var(--borde);
+  padding-top: 0.4rem;
   margin-top: 0.2rem;
-  padding-top: 0.3rem;
+  font-size: 0.78rem;
 }
-.fila-activo-total .activo-nombre { color: var(--texto); }
+.activo-total .etiqueta { color: var(--texto-tenue); }
 
 /* Un solo eje: todas las barras se miden contra el activo de mayor peso,
    así se ve de un vistazo cuál manda en el resultado. */

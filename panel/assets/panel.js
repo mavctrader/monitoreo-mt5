@@ -557,31 +557,69 @@ function renderizarActivosDeLaCuenta(nodo, cuenta) {
   titulo.textContent = "Aporte por activo";
   bloque.appendChild(titulo);
 
-  for (const a of activos) {
-    const neto = Number(a.neto) || 0;
-    const costo = (Number(a.comision) || 0) + (Number(a.swap) || 0);
-
-    const fila = document.createElement("div");
-    fila.className = "fila-activo";
-    fila.innerHTML = `
-      <span class="activo-nombre">${a.simbolo}</span>
-      <span class="activo-neto ${neto < 0 ? "negativo" : "positivo"}">${formatearMoneda(neto)}</span>
-      <span class="barra-aporte"><span class="barra-relleno ${neto < 0 ? "resta" : "suma"}" style="width:${(Math.abs(neto) / mayor) * 100}%"></span></span>
-      <span class="activo-costo" title="Comisión ${formatearMoneda(a.comision)} · Swap ${formatearMoneda(a.swap)}${Number(a.spread) ? ` · Spread ${formatearMoneda(a.spread)}` : ""}">${formatearMoneda(costo)}</span>
-    `;
-    bloque.appendChild(fila);
-  }
+  for (const a of activos) bloque.appendChild(filaDeActivo(a, mayor));
 
   const suma = (campo) => activos.reduce((t, a) => t + (Number(a[campo]) || 0), 0);
   const total = document.createElement("div");
-  total.className = "fila-activo fila-activo-total";
+  total.className = "activo-total";
   total.innerHTML = `
-    <span class="activo-nombre">Total</span>
-    <span class="activo-neto ${suma("neto") < 0 ? "negativo" : "positivo"}">${formatearMoneda(suma("neto"))}</span>
-    <span></span>
-    <span class="activo-costo">${formatearMoneda(suma("comision") + suma("swap"))}</span>
+    <span class="etiqueta">Total del portafolio</span>
+    <span class="${suma("neto") < 0 ? "negativo" : "positivo"}">${formatearMoneda(suma("neto"))}</span>
   `;
   bloque.appendChild(total);
+}
+
+function filaDeActivo(a, mayor) {
+  const neto = Number(a.neto) || 0;
+
+  // Mismos tres costos y los mismos colores que en el costo del par.
+  const partes = [
+    { clase: "seg-spread", etiqueta: "spread", valor: Math.abs(Number(a.spread) || 0) },
+    { clase: "seg-swap", etiqueta: "swap", valor: Math.abs(Number(a.swap) || 0) },
+    { clase: "seg-comision", etiqueta: "comisión", valor: Math.abs(Number(a.comision) || 0) },
+  ];
+  const costo = partes.reduce((t, p) => t + p.valor, 0);
+  const segmentos = costo > 0
+    ? partes
+        .filter((p) => p.valor > 0)
+        .map((p) => `<span class="${p.clase}" style="width:${(p.valor / costo) * 100}%" title="${p.etiqueta} ${formatearMoneda(p.valor)}"></span>`)
+        .join("")
+    : "";
+
+  const fila = document.createElement("div");
+  fila.className = "costo-cuenta activo-bloque";
+  fila.innerHTML = `
+    <div class="costo-encabezado">
+      <span class="costo-nombre">${a.simbolo}</span>
+      <span class="${neto < 0 ? "negativo" : "positivo"}">${formatearMoneda(neto)}</span>
+    </div>
+    <div class="barra-aporte"><span class="barra-relleno ${neto < 0 ? "resta" : "suma"}" style="width:${(Math.abs(neto) / mayor) * 100}%"></span></div>
+    <div class="costo-encabezado activo-costo-total">
+      <span class="etiqueta">Costo</span>
+      <span class="costo-total">${formatearMoneda(costo)}</span>
+    </div>
+    <div class="costo-barra">${segmentos}</div>
+    <div class="costo-leyenda">
+      ${partes.map((p) => `<span class="punto ${p.clase}"></span>${p.etiqueta} ${formatearMoneda(p.valor)}`).join(" ")}
+    </div>
+    ${textoDrawdown(a)}
+  `;
+  return fila;
+}
+
+// La caída más grande que tuvo este activo desde su mejor momento, y cuándo
+// tocó ese fondo. Se calcula sobre las operaciones ya cerradas.
+function textoDrawdown(a) {
+  if (a.drawdown_max == null || Number(a.drawdown_max) === 0) return "";
+  const cuando = a.drawdown_en
+    ? new Date(a.drawdown_en).toLocaleDateString("es", { day: "2-digit", month: "2-digit", year: "2-digit" })
+    : "-";
+  return `
+    <div class="activo-drawdown">
+      <span class="etiqueta">Drawdown máx.</span>
+      <span class="negativo">${formatearMoneda(a.drawdown_max)}</span>
+      <span class="drawdown-fecha">${cuando}</span>
+    </div>`;
 }
 
 function renderizarObjetivos(nodo, estado, reglas) {
