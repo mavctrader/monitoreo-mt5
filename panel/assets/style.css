@@ -366,6 +366,36 @@ details summary { cursor: pointer; }
 /* En la de capital inversor los montos van de la 4 a la 9. */
 .tabla-inversor th:nth-child(n+4):nth-child(-n+9),
 .tabla-inversor td:nth-child(n+4):nth-child(-n+9) { text-align: right; }
+
+/* Aporte de cada activo al portafolio: qué instrumento suma y cuál resta. */
+.titulo-activos {
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--texto-tenue);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 1rem 0 0.2rem;
+}
+.tabla-activos .col-activo { font-weight: 500; }
+.tabla-activos td.tenue, .tabla-activos .tenue { color: var(--texto-tenue); }
+/* Montos a la derecha salvo el nombre del activo y la columna de la barra. */
+.tabla-activos th:nth-child(n+4),
+.tabla-activos td:nth-child(n+4) { text-align: right; }
+.tabla-activos th:nth-child(2),
+.tabla-activos td:nth-child(2) { text-align: right; }
+.tabla-activos .col-barra { width: 90px; padding-left: 0.6rem; }
+
+/* Un solo eje: todas las barras se miden contra el activo de mayor peso,
+   así se ve de un vistazo cuál manda en el resultado. */
+.barra-aporte {
+  height: 6px;
+  background: var(--fondo);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.barra-aporte .barra-relleno { height: 100%; border-radius: 3px; }
+.barra-aporte .barra-relleno.suma { background: var(--verde); }
+.barra-aporte .barra-relleno.resta { background: var(--rojo); }
 /* Celeste: la cuenta está logueada en un MT5 de la VPS. Rojo: ya no. */
 .tabla-resumen .indicador { width: 6px; height: 6px; margin: 0; opacity: 0.8; }
 .tabla-resumen .indicador.on { background: var(--celeste); }

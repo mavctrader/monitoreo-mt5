@@ -7,7 +7,7 @@
 <!-- El ?v= es para que el navegador no siga usando la versión vieja que tiene
      guardada. HAY QUE SUBIRLE EL NÚMERO EN CADA CAMBIO de style.css o
      panel.js: si no, el celular puede quedarse días con la copia anterior. -->
-<link rel="stylesheet" href="assets/style.css?v=4">
+<link rel="stylesheet" href="assets/style.css?v=5">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
@@ -102,6 +102,26 @@
       <tbody id="cuerpo-inversor"></tbody>
     </table>
     </div>
+
+    <h3 class="titulo-activos">Aporte de cada activo al portafolio</h3>
+    <div class="tabla-scroll">
+    <table class="tabla-resumen tabla-activos">
+      <thead>
+        <tr>
+          <th>Activo</th>
+          <th title="Cuánto le suma o le resta este activo al portafolio">Aporte</th>
+          <th></th>
+          <th title="Resultado de las operaciones cerradas">Cerrado</th>
+          <th title="Resultado de las posiciones abiertas">Flotante</th>
+          <th>Comisión</th>
+          <th>Swap</th>
+          <th title="Lo que costó cruzar la horquilla al abrir. Ya está descontado del resultado; se muestra para saber cuánto se fue en eso">Spread</th>
+          <th title="Operaciones cerradas / posiciones abiertas">Ops.</th>
+        </tr>
+      </thead>
+      <tbody id="cuerpo-activos"></tbody>
+    </table>
+    </div>
   </details>
 
   <main id="lista-cuentas">
@@ -161,6 +181,6 @@
   </article>
 </template>
 
-<script src="assets/panel.js?v=4"></script>
+<script src="assets/panel.js?v=5"></script>
 </body>
 </html>

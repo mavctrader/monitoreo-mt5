@@ -1,0 +1,71 @@
+-- Resultado por activo de cada cuenta: cuánto le suma o le resta cada
+-- símbolo al portafolio, con sus costos a la vista.
+--
+-- Pensado para las cuentas de capital inversor (Darwinex Zero), que se
+-- manejan como un portafolio y no como una cuenta de fondeo: ahí lo que
+-- interesa no es el colchón contra un límite, sino qué instrumento aporta.
+--
+-- Sirve igual para cualquier cuenta, así que la vista no filtra por tipo.
+--
+-- Correr en el SQL Editor de Supabase (rol postgres).
+
+drop view if exists resumen_activos;
+
+create view resumen_activos
+with (security_invoker = true) as
+select
+  x.cuenta_id,
+  x.simbolo,
+  sum(x.cerradas)::int   as cerradas,
+  sum(x.abiertas)::int    as abiertas,
+  sum(x.beneficio)        as beneficio,
+  sum(x.flotante)         as flotante,
+  sum(x.comision)         as comision,
+  sum(x.swap)             as swap,
+  sum(x.spread)           as spread,
+  -- Lo que el activo le pone o le saca al portafolio. La comisión ya viene
+  -- en negativo y el swap con su signo, así que se suman.
+  --
+  -- El spread NO se resta acá a propósito: es lo que costó cruzar la
+  -- horquilla al abrir, y eso ya está metido en el precio de entrada, o sea
+  -- ya está descontado del beneficio. Se muestra aparte para saber cuánto
+  -- del resultado se fue en eso, pero restarlo otra vez sería contarlo dos
+  -- veces.
+  sum(x.beneficio) + sum(x.flotante) + sum(x.comision) + sum(x.swap) as neto
+from (
+  -- Operaciones ya cerradas
+  select
+    o.cuenta_id, o.simbolo,
+    1 as cerradas, 0 as abiertas,
+    coalesce(o.beneficio, 0) as beneficio,
+    0::numeric as flotante,
+    coalesce(o.comision, 0) as comision,
+    coalesce(o.swap, 0) as swap,
+    0::numeric as spread
+  from operaciones o
+  where o.simbolo is not null
+
+  union all
+
+  -- Posiciones todavía abiertas: entran por el flotante
+  select
+    p.cuenta_id, p.simbolo,
+    0, 1,
+    0::numeric,
+    coalesce(p.beneficio, 0),
+    0::numeric, 0::numeric, 0::numeric
+  from posiciones p
+  where p.simbolo is not null
+
+  union all
+
+  -- Spread medido por el recolector al abrir cada posición
+  select
+    s.cuenta_id, s.simbolo,
+    0, 0,
+    0::numeric, 0::numeric, 0::numeric, 0::numeric,
+    coalesce(s.costo, 0)
+  from spreads s
+  where s.simbolo is not null
+) x
+group by x.cuenta_id, x.simbolo;
