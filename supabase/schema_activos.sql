@@ -52,6 +52,41 @@ from con_pico
 order by cuenta_id, simbolo, (acumulado - pico) asc, cerrada_en asc;
 
 
+-- Lo mismo pero para la cuenta entera: la peor caída del portafolio.
+-- No es la suma de las caídas de cada activo -esas pasan en momentos
+-- distintos y se tapan entre ellas-, sino la caída de la curva combinada.
+drop view if exists drawdown_cuenta;
+
+create view drawdown_cuenta
+with (security_invoker = true) as
+with curva as (
+  select
+    o.cuenta_id,
+    o.cerrada_en,
+    sum(coalesce(o.beneficio, 0) + coalesce(o.comision, 0) + coalesce(o.swap, 0))
+      over (partition by o.cuenta_id
+            order by o.cerrada_en, o.ticket
+            rows between unbounded preceding and current row) as acumulado
+  from operaciones o
+  where o.cerrada_en is not null
+),
+con_pico as (
+  select
+    c.*,
+    greatest(0, max(c.acumulado) over (
+      partition by c.cuenta_id
+      order by c.cerrada_en
+      rows between unbounded preceding and current row)) as pico
+  from curva c
+)
+select distinct on (cuenta_id)
+  cuenta_id,
+  (acumulado - pico) as drawdown_max,
+  cerrada_en as drawdown_en
+from con_pico
+order by cuenta_id, (acumulado - pico) asc, cerrada_en asc;
+
+
 drop view if exists resumen_activos;
 
 create view resumen_activos

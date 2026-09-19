@@ -41,6 +41,9 @@ let idsInversor = new Set();
 // Aporte de cada activo al portafolio, por cuenta. Lo dibuja la tarjeta.
 let activosCache = [];
 
+// Peor caída de cada cuenta entera, con la fecha en que tocó fondo.
+let drawdownCache = [];
+
 // ---------------------------------------------------------------
 // Autenticación
 // ---------------------------------------------------------------
@@ -96,7 +99,7 @@ function refrescar() {
   cargarInversor().then(() => cargarBalance()).then(cargarResumen);
   // Los activos tienen que estar en memoria antes de armar las tarjetas: la
   // de una cuenta de portafolio los muestra adentro.
-  Promise.all([cargarPares(), cargarActivos()]).then(cargarCuentas);
+  Promise.all([cargarPares(), cargarActivos(), cargarDrawdown()]).then(cargarCuentas);
 }
 
 // ---------------------------------------------------------------
@@ -574,6 +577,20 @@ function renderizarActivosDeLaCuenta(nodo, cuenta) {
     </span>
   `;
   bloque.appendChild(total);
+
+  // La peor caída del portafolio entero. No es la suma de las caídas de cada
+  // activo: esas pasan en momentos distintos y se tapan entre ellas.
+  const dd = drawdownCache.find((d) => d.cuenta_id === cuenta.id);
+  if (dd && Number(dd.drawdown_max) !== 0) {
+    const fila = document.createElement("div");
+    fila.className = "activo-drawdown drawdown-portafolio";
+    fila.innerHTML = `
+      <span class="etiqueta" title="La caída más grande que tuvo el portafolio desde su mejor momento">Drawdown máx. del portafolio</span>
+      <span class="negativo">${formatearMoneda(dd.drawdown_max)}</span>
+      <span class="drawdown-fecha">${dd.drawdown_en ? new Date(dd.drawdown_en).toLocaleDateString("es", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "-"}</span>
+    `;
+    bloque.appendChild(fila);
+  }
 }
 
 function filaDeActivo(a, mayor) {
@@ -882,6 +899,11 @@ async function cargarInversor() {
 async function cargarActivos() {
   const { data, error } = await sb.from("resumen_activos").select("*");
   activosCache = error ? [] : data;
+}
+
+async function cargarDrawdown() {
+  const { data, error } = await sb.from("drawdown_cuenta").select("*");
+  drawdownCache = error ? [] : data;
 }
 
 // Con la sección cerrada, el título tiene que decir lo esencial igual.

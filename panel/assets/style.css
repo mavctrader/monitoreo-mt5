@@ -418,6 +418,7 @@ details summary { cursor: pointer; }
   font-size: 0.78rem;
 }
 .activo-total .etiqueta { color: var(--texto-tenue); }
+.drawdown-portafolio { margin-top: 0.15rem; }
 
 /* Un solo eje: todas las barras se miden contra el activo de mayor peso,
    así se ve de un vistazo cuál manda en el resultado. */
