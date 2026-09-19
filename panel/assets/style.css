@@ -367,33 +367,51 @@ details summary { cursor: pointer; }
 .tabla-inversor th:nth-child(n+4):nth-child(-n+9),
 .tabla-inversor td:nth-child(n+4):nth-child(-n+9) { text-align: right; }
 
-/* Aporte de cada activo al portafolio: qué instrumento suma y cuál resta. */
-.titulo-activos {
-  font-size: 0.68rem;
-  font-weight: 400;
+/* Aporte de cada activo al portafolio, dentro de la tarjeta de la cuenta.
+   Reemplaza al bloque de Objetivo y Colchones, que en una cuenta de capital
+   inversor no significan nada. */
+.cuenta-activos .titulo-bloque {
+  font-size: 0.62rem;
   color: var(--texto-tenue);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin: 1rem 0 0.2rem;
+  margin-bottom: 0.3rem;
 }
-.tabla-activos .col-activo { font-weight: 500; }
-.tabla-activos td.tenue, .tabla-activos .tenue { color: var(--texto-tenue); }
-/* Montos a la derecha salvo el nombre del activo y la columna de la barra. */
-.tabla-activos th:nth-child(n+4),
-.tabla-activos td:nth-child(n+4) { text-align: right; }
-.tabla-activos th:nth-child(2),
-.tabla-activos td:nth-child(2) { text-align: right; }
-.tabla-activos .col-barra { width: 90px; padding-left: 0.6rem; }
+.cuenta-activos .aviso-chico { color: var(--texto-tenue); font-size: 0.72rem; margin: 0; }
+
+/* activo | aporte | barra | costo */
+.fila-activo {
+  display: grid;
+  grid-template-columns: 1fr auto 56px auto;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+  padding: 0.12rem 0;
+}
+.fila-activo .activo-nombre { color: var(--texto-tenue); }
+.fila-activo .activo-neto { font-variant-numeric: tabular-nums; }
+.fila-activo .activo-costo {
+  color: var(--texto-tenue);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.68rem;
+}
+.fila-activo-total {
+  border-top: 1px solid var(--borde);
+  margin-top: 0.2rem;
+  padding-top: 0.3rem;
+}
+.fila-activo-total .activo-nombre { color: var(--texto); }
 
 /* Un solo eje: todas las barras se miden contra el activo de mayor peso,
    así se ve de un vistazo cuál manda en el resultado. */
 .barra-aporte {
+  display: block;
   height: 6px;
   background: var(--fondo);
   border-radius: 3px;
   overflow: hidden;
 }
-.barra-aporte .barra-relleno { height: 100%; border-radius: 3px; }
+.barra-aporte .barra-relleno { display: block; height: 100%; border-radius: 3px; }
 .barra-aporte .barra-relleno.suma { background: var(--verde); }
 .barra-aporte .barra-relleno.resta { background: var(--rojo); }
 /* Celeste: la cuenta está logueada en un MT5 de la VPS. Rojo: ya no. */

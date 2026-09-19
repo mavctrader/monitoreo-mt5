@@ -28,7 +28,6 @@ const cuerpoPlantillas = document.getElementById("cuerpo-plantillas");
 const cuerpoResumen = document.getElementById("cuerpo-resumen");
 const seccionInversor = document.getElementById("inversor-seccion");
 const cuerpoInversor = document.getElementById("cuerpo-inversor");
-const cuerpoActivos = document.getElementById("cuerpo-activos");
 const formPlantilla = document.getElementById("form-plantilla");
 
 let temporizadorRefresco = null;
@@ -38,6 +37,9 @@ let paresCache = [];
 // Ids de las cuentas de capital inversor. Se llenan al cargar su tabla y
 // sirven para que no aparezcan también en la de cuentas de fondeo.
 let idsInversor = new Set();
+
+// Aporte de cada activo al portafolio, por cuenta. Lo dibuja la tarjeta.
+let activosCache = [];
 
 // ---------------------------------------------------------------
 // Autenticación
@@ -92,7 +94,9 @@ function refrescar() {
   // Primero las de capital inversor: la tabla de fondeo necesita saber
   // cuáles son para no listarlas dos veces.
   cargarInversor().then(() => cargarBalance()).then(cargarResumen);
-  cargarPares().then(cargarCuentas);
+  // Los activos tienen que estar en memoria antes de armar las tarjetas: la
+  // de una cuenta de portafolio los muestra adentro.
+  Promise.all([cargarPares(), cargarActivos()]).then(cargarCuentas);
 }
 
 // ---------------------------------------------------------------
@@ -519,9 +523,65 @@ function renderizarCuenta(cuenta) {
     indSeñal.title = "Nunca dio señal";
   }
 
-  renderizarObjetivos(nodo, estado, reglas);
+  // Una cuenta de portafolio no tiene objetivo ni colchón contra un límite:
+  // en su lugar va el aporte de cada activo, que es lo que hay para mirar.
+  if (cuenta.tipo === "capital_inversor") {
+    renderizarActivosDeLaCuenta(nodo, cuenta);
+  } else {
+    renderizarObjetivos(nodo, estado, reglas);
+  }
 
   return nodo;
+}
+
+// Reemplaza el bloque de objetivos por el ranking de activos: cuál le suma
+// al portafolio y cuál le resta, con los costos de cada uno debajo.
+function renderizarActivosDeLaCuenta(nodo, cuenta) {
+  const bloque = nodo.querySelector(".cuenta-objetivos");
+  bloque.innerHTML = "";
+  bloque.classList.add("cuenta-activos");
+
+  const activos = activosCache
+    .filter((a) => a.cuenta_id === cuenta.id)
+    .sort((a, b) => Number(b.neto) - Number(a.neto));
+
+  if (!activos.length) {
+    bloque.innerHTML = `<p class="aviso-chico">Todavía no hay operaciones registradas.</p>`;
+    return;
+  }
+
+  const mayor = Math.max(...activos.map((a) => Math.abs(Number(a.neto) || 0)), 1);
+
+  const titulo = document.createElement("div");
+  titulo.className = "titulo-bloque";
+  titulo.textContent = "Aporte por activo";
+  bloque.appendChild(titulo);
+
+  for (const a of activos) {
+    const neto = Number(a.neto) || 0;
+    const costo = (Number(a.comision) || 0) + (Number(a.swap) || 0);
+
+    const fila = document.createElement("div");
+    fila.className = "fila-activo";
+    fila.innerHTML = `
+      <span class="activo-nombre">${a.simbolo}</span>
+      <span class="activo-neto ${neto < 0 ? "negativo" : "positivo"}">${formatearMoneda(neto)}</span>
+      <span class="barra-aporte"><span class="barra-relleno ${neto < 0 ? "resta" : "suma"}" style="width:${(Math.abs(neto) / mayor) * 100}%"></span></span>
+      <span class="activo-costo" title="Comisión ${formatearMoneda(a.comision)} · Swap ${formatearMoneda(a.swap)}${Number(a.spread) ? ` · Spread ${formatearMoneda(a.spread)}` : ""}">${formatearMoneda(costo)}</span>
+    `;
+    bloque.appendChild(fila);
+  }
+
+  const suma = (campo) => activos.reduce((t, a) => t + (Number(a[campo]) || 0), 0);
+  const total = document.createElement("div");
+  total.className = "fila-activo fila-activo-total";
+  total.innerHTML = `
+    <span class="activo-nombre">Total</span>
+    <span class="activo-neto ${suma("neto") < 0 ? "negativo" : "positivo"}">${formatearMoneda(suma("neto"))}</span>
+    <span></span>
+    <span class="activo-costo">${formatearMoneda(suma("comision") + suma("swap"))}</span>
+  `;
+  bloque.appendChild(total);
 }
 
 function renderizarObjetivos(nodo, estado, reglas) {
@@ -765,88 +825,13 @@ async function cargarInversor() {
     `Capital inversor · ${data.length}` +
     ` · resultado <span class="${total < 0 ? "negativo" : "positivo"}">${formatearDolares(total)}</span>`;
 
-  await cargarActivos();
 }
 
-// Estas cuentas se manejan como un portafolio: lo que importa no es el
-// colchón contra un límite sino qué instrumento le suma y cuál le resta.
-// Van ordenados de mayor aporte a mayor pérdida.
+// El aporte de cada activo se pide una vez por ciclo y queda en memoria: lo
+// usa la tarjeta de cada cuenta de portafolio, que es donde va.
 async function cargarActivos() {
-  if (!idsInversor.size) return;
-
-  const { data, error } = await sb
-    .from("resumen_activos")
-    .select("*")
-    .in("cuenta_id", [...idsInversor]);
-
-  if (error || !data.length) {
-    cuerpoActivos.innerHTML = error
-      ? `<tr><td colspan="9" class="error">${error.message}</td></tr>`
-      : `<tr><td colspan="9" class="aviso">Todavía no hay operaciones registradas.</td></tr>`;
-    return;
-  }
-
-  // Un mismo símbolo puede venir de más de una cuenta de portafolio.
-  const porActivo = new Map();
-  for (const f of data) {
-    const previo = porActivo.get(f.simbolo);
-    if (!previo) {
-      porActivo.set(f.simbolo, { ...f });
-      continue;
-    }
-    for (const campo of ["cerradas", "abiertas", "beneficio", "flotante", "comision", "swap", "spread", "neto"]) {
-      previo[campo] = (Number(previo[campo]) || 0) + (Number(f[campo]) || 0);
-    }
-  }
-
-  const activos = [...porActivo.values()].sort((a, b) => Number(b.neto) - Number(a.neto));
-
-  // La barra es comparativa: la más grande del cuadro marca el ancho máximo.
-  const mayor = Math.max(...activos.map((a) => Math.abs(Number(a.neto) || 0)), 1);
-
-  cuerpoActivos.innerHTML = "";
-  for (const a of activos) {
-    const neto = Number(a.neto) || 0;
-    const ancho = (Math.abs(neto) / mayor) * 100;
-
-    const fila = document.createElement("tr");
-    fila.innerHTML = `
-      <td class="col-activo">${a.simbolo}</td>
-      <td class="${neto < 0 ? "negativo" : "positivo"}">${formatearMoneda(neto)}</td>
-      <td class="col-barra">
-        <div class="barra-aporte"><div class="barra-relleno ${neto < 0 ? "resta" : "suma"}" style="width:${ancho}%"></div></div>
-      </td>
-      <td class="${Number(a.beneficio) < 0 ? "negativo" : "positivo"}">${formatearMoneda(a.beneficio)}</td>
-      <td class="${Number(a.flotante) < 0 ? "negativo" : "positivo"}">${formatearMoneda(a.flotante)}</td>
-      <td class="negativo">${formatearMoneda(a.comision)}</td>
-      <td class="${Number(a.swap) < 0 ? "negativo" : "positivo"}">${formatearMoneda(a.swap)}</td>
-      <td class="tenue">${formatearMoneda(a.spread)}</td>
-      <td class="tenue">${a.cerradas}${a.abiertas ? ` +${a.abiertas}` : ""}</td>
-    `;
-    cuerpoActivos.appendChild(fila);
-  }
-
-  cuerpoActivos.appendChild(filaTotalActivos(activos));
-}
-
-function filaTotalActivos(activos) {
-  const suma = (campo) => activos.reduce((t, a) => t + (Number(a[campo]) || 0), 0);
-  const neto = suma("neto");
-
-  const fila = document.createElement("tr");
-  fila.className = "fila-total";
-  fila.innerHTML = `
-    <td>Total</td>
-    <td class="${neto < 0 ? "negativo" : "positivo"}">${formatearMoneda(neto)}</td>
-    <td></td>
-    <td>${formatearMoneda(suma("beneficio"))}</td>
-    <td>${formatearMoneda(suma("flotante"))}</td>
-    <td>${formatearMoneda(suma("comision"))}</td>
-    <td>${formatearMoneda(suma("swap"))}</td>
-    <td class="tenue">${formatearMoneda(suma("spread"))}</td>
-    <td></td>
-  `;
-  return fila;
+  const { data, error } = await sb.from("resumen_activos").select("*");
+  activosCache = error ? [] : data;
 }
 
 // Con la sección cerrada, el título tiene que decir lo esencial igual.
