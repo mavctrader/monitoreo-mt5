@@ -281,21 +281,39 @@ void EscribirOperacionesNuevas()
       // Precio y hora de apertura: primer deal de la misma posición (DEAL_ENTRY_IN).
       double entrada = 0;
       datetime abierta = 0;
+      // De paso se junta la comisión de apertura: MT5 la cobra en las dos
+      // puntas y el deal de cierre solo trae la suya, así que sin esto la
+      // comisión quedaba a la mitad.
+      double comisionEntrada = 0;
+      double volumenEntrada = 0;
       if(HistorySelectByPosition(posicionId))
         {
          int nDeals = HistoryDealsTotal();
          for(int j = 0; j < nDeals; j++)
            {
             ulong t2 = HistoryDealGetTicket(j);
-            if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(t2, DEAL_ENTRY) == DEAL_ENTRY_IN)
+            if(t2 == 0)
+               continue;
+            if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(t2, DEAL_ENTRY) != DEAL_ENTRY_IN)
+               continue;
+            if(entrada == 0)
               {
                entrada = HistoryDealGetDouble(t2, DEAL_PRICE);
                abierta = (datetime)HistoryDealGetInteger(t2, DEAL_TIME);
-               break;
               }
+            comisionEntrada += HistoryDealGetDouble(t2, DEAL_COMMISSION);
+            volumenEntrada += HistoryDealGetDouble(t2, DEAL_VOLUME);
            }
         }
       HistorySelect(desde, TimeCurrent() + 1); // restaurar el conjunto de deals tras la consulta por posición
+
+      // La comisión de apertura se reparte según el volumen que cierra este
+      // deal: si la posición se cierra en partes, cada parte se lleva la
+      // porción que le toca y no la comisión entera.
+      if(volumenEntrada > 0)
+         comision += comisionEntrada * (volumen / volumenEntrada);
+      else
+         comision += comisionEntrada;
 
       string json = "{"
          + "\"cuenta_id\":" + LoginStr() + ","
