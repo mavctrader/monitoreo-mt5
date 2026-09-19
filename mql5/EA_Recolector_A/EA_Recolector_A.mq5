@@ -1,8 +1,13 @@
 //+------------------------------------------------------------------+
-//|                                              EA_Recolector.mq5   |
+//|                                            EA_Recolector_A.mq5   |
 //|  Lee el estado de la cuenta y lo escribe en la carpeta Common.   |
 //|  No opera. No sale a internet. No guarda credenciales.           |
 //|  Un gráfico por terminal.                                        |
+//|                                                                  |
+//|  VERSIÓN A - CERRADA EL 19/09/2026. Va en las cuentas que        |
+//|  operan cross. No se modifica, no se sobrescribe, no se copia    |
+//|  nada encima: queda tal cual como registro de lo que corrió.     |
+//|  Todo lo que venga de acá en adelante va en EA_Recolector_B.     |
 //+------------------------------------------------------------------+
 #property copyright "Centro de Monitoreo MT5"
 #property version   "1.00"
@@ -120,6 +125,95 @@ void EscribirPosiciones()
   }
 
 //+------------------------------------------------------------------+
+//| Costo del spread de cada posición                                |
+//|                                                                    |
+//| MT5 no informa el spread como un dato de la operación: va metido   |
+//| en el precio de entrada. Se mide al ver la posición por primera    |
+//| vez, calculando lo que cuesta cruzar la horquilla con ese volumen. |
+//| Solo se mide una vez por ticket; después el precio ya se movió.    |
+//+------------------------------------------------------------------+
+ulong g_spreads_medidos[];
+
+bool SpreadYaMedido(ulong ticket)
+  {
+   for(int i = 0; i < ArraySize(g_spreads_medidos); i++)
+      if(g_spreads_medidos[i] == ticket)
+         return true;
+   return false;
+  }
+
+void MedirSpreadsNuevos()
+  {
+   int total = PositionsTotal();
+   for(int i = 0; i < total; i++)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0 || SpreadYaMedido(ticket))
+         continue;
+
+      string simbolo = PositionGetString(POSITION_SYMBOL);
+      double volumen = PositionGetDouble(POSITION_VOLUME);
+      double horquilla = SymbolInfoDouble(simbolo, SYMBOL_ASK) - SymbolInfoDouble(simbolo, SYMBOL_BID);
+      double tamTick = SymbolInfoDouble(simbolo, SYMBOL_TRADE_TICK_SIZE);
+      double valorTick = SymbolInfoDouble(simbolo, SYMBOL_TRADE_TICK_VALUE);
+
+      double costo = 0;
+      if(tamTick > 0)
+         costo = horquilla / tamTick * valorTick * volumen;
+
+      string json = "{"
+         + "\"cuenta_id\":" + LoginStr() + ","
+         + "\"ticket\":" + IntegerToString((long)ticket) + ","
+         + "\"simbolo\":\"" + JsonEscape(simbolo) + "\","
+         + "\"volumen\":" + DoubleToString(volumen, 2) + ","
+         + "\"costo\":" + DoubleToString(costo, 2) + ","
+         + "\"medido_en\":\"" + IsoTime(TimeGMT()) + "\""
+         + "}";
+      AgregarLinea(CARPETA + "spreads_" + LoginStr() + ".jsonl", json);
+
+      int n = ArraySize(g_spreads_medidos);
+      ArrayResize(g_spreads_medidos, n + 1);
+      g_spreads_medidos[n] = ticket;
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| Depósitos y retiros                                              |
+//+------------------------------------------------------------------+
+void PublicarMovimiento(ulong ticket, datetime cuando)
+  {
+   string json = "{"
+      + "\"cuenta_id\":" + LoginStr() + ","
+      + "\"ticket\":" + IntegerToString((long)ticket) + ","
+      + "\"monto\":" + DoubleToString(HistoryDealGetDouble(ticket, DEAL_PROFIT), 2) + ","
+      + "\"comentario\":\"" + JsonEscape(HistoryDealGetString(ticket, DEAL_COMMENT)) + "\","
+      + "\"ocurrido_en\":\"" + IsoTime(cuando) + "\""
+      + "}";
+   AgregarLinea(CARPETA + "movimientos_" + LoginStr() + ".jsonl", json);
+  }
+
+// Al arrancar recorre TODO el historial una vez y publica los movimientos de
+// saldo, incluido el depósito inicial. El recorrido normal solo mira lo nuevo,
+// y esos movimientos suelen ser más viejos que el marcador. Repetirlos no
+// molesta: el agente los guarda por número de ticket, sin duplicar.
+void EscribirMovimientosHistoricos()
+  {
+   if(!HistorySelect(0, TimeCurrent() + 1))
+      return;
+
+   int total = HistoryDealsTotal();
+   for(int i = 0; i < total; i++)
+     {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(ticket == 0)
+         continue;
+      if((ENUM_DEAL_TYPE)HistoryDealGetInteger(ticket, DEAL_TYPE) != DEAL_TYPE_BALANCE)
+         continue;
+      PublicarMovimiento(ticket, (datetime)HistoryDealGetInteger(ticket, DEAL_TIME));
+     }
+  }
+
+//+------------------------------------------------------------------+
 //| Operaciones cerradas: solo lo nuevo desde el último envío        |
 //+------------------------------------------------------------------+
 void EscribirOperacionesNuevas()
@@ -140,22 +234,33 @@ void EscribirOperacionesNuevas()
       if(ticket == 0)
          continue;
 
-      // Solo cierres de posiciones (no depósitos, retiros, comisiones sueltas).
-      if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(ticket, DEAL_ENTRY) != DEAL_ENTRY_OUT)
-         continue;
-      ENUM_DEAL_TYPE tipoDeal = (ENUM_DEAL_TYPE)HistoryDealGetInteger(ticket, DEAL_TYPE);
-      if(tipoDeal != DEAL_TYPE_BUY && tipoDeal != DEAL_TYPE_SELL)
-         continue;
-
       datetime cierre = (datetime)HistoryDealGetInteger(ticket, DEAL_TIME);
       if(cierre <= desde)
+         continue;
+
+      ENUM_DEAL_TYPE tipoDeal = (ENUM_DEAL_TYPE)HistoryDealGetInteger(ticket, DEAL_TYPE);
+
+      // Depósitos y retiros: mueven el saldo sin que haya operación.
+      if(tipoDeal == DEAL_TYPE_BALANCE)
+        {
+         PublicarMovimiento(ticket, cierre);
+         if(cierre > maxCierre)
+            maxCierre = cierre;
+         continue;
+        }
+
+      // Solo cierres de posiciones.
+      if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(ticket, DEAL_ENTRY) != DEAL_ENTRY_OUT)
+         continue;
+      if(tipoDeal != DEAL_TYPE_BUY && tipoDeal != DEAL_TYPE_SELL)
          continue;
 
       string tipo = (tipoDeal == DEAL_TYPE_BUY) ? "venta" : "compra"; // el deal de cierre es el tipo contrario a la apertura
       double volumen = HistoryDealGetDouble(ticket, DEAL_VOLUME);
       double salida = HistoryDealGetDouble(ticket, DEAL_PRICE);
       double beneficio = HistoryDealGetDouble(ticket, DEAL_PROFIT);
-      double comision = HistoryDealGetDouble(ticket, DEAL_COMMISSION) + HistoryDealGetDouble(ticket, DEAL_SWAP);
+      double comision = HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+      double swap = HistoryDealGetDouble(ticket, DEAL_SWAP);
       long posicionId = (long)HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
       string simbolo = HistoryDealGetString(ticket, DEAL_SYMBOL);
 
@@ -188,6 +293,7 @@ void EscribirOperacionesNuevas()
          + "\"salida\":" + DoubleToString(salida, 5) + ","
          + "\"beneficio\":" + DoubleToString(beneficio, 2) + ","
          + "\"comision\":" + DoubleToString(comision, 2) + ","
+         + "\"swap\":" + DoubleToString(swap, 2) + ","
          + "\"abierta_en\":\"" + IsoTime(abierta) + "\","
          + "\"cerrada_en\":\"" + IsoTime(cierre) + "\""
          + "}";
@@ -231,7 +337,9 @@ datetime g_plantillas_en = 0;
 
 void EscribirGraficos()
   {
-   bool guardarPlantillas = (TimeCurrent() - g_plantillas_en >= INTERVALO_PLANTILLAS);
+   // TimeLocal y no TimeCurrent: con el mercado cerrado la hora del servidor
+   // no avanza y las plantillas dejarían de refrescarse.
+   bool guardarPlantillas = (TimeLocal() - g_plantillas_en >= INTERVALO_PLANTILLAS);
 
    string items = "";
    long chartId = ChartFirst();
@@ -251,7 +359,7 @@ void EscribirGraficos()
      }
 
    if(guardarPlantillas)
-      g_plantillas_en = TimeCurrent();
+      g_plantillas_en = TimeLocal();
 
    string json = "{\"cuenta_id\":" + LoginStr() + ",\"graficos\":[" + items + "]}";
    EscribirTexto(CARPETA + "graficos_" + LoginStr() + ".json", json);
@@ -298,6 +406,7 @@ void ProcesarOrdenesDescargar()
 void CicloCompleto()
   {
    EscribirEstado();
+   MedirSpreadsNuevos();
    EscribirPosiciones();
    EscribirOperacionesNuevas();
    EscribirGraficos();
@@ -309,6 +418,7 @@ int OnInit()
    if(!FolderCreate(CARPETA, FILE_COMMON))
       Print("Aviso: no se pudo crear/confirmar la carpeta ", CARPETA, " error ", GetLastError());
 
+   EscribirMovimientosHistoricos();
    CicloCompleto();
    EventSetTimer(IntervaloSegundos);
    return(INIT_SUCCEEDED);

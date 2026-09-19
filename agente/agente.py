@@ -45,6 +45,16 @@ if sys.stdout is None:
     sys.stdout = _log
     sys.stderr = _log
 
+_print_original = print
+
+
+def print(*args, **kwargs):  # noqa: A001 - se reemplaza a propósito
+    """Todo lo que se registre lleva fecha y hora: sin eso no se puede saber
+    si una línea del log es de recién o de hace días."""
+    marca = datetime.now().strftime("%d/%m %H:%M:%S")
+    _print_original(marca, *args, **kwargs)
+
+
 load_dotenv()
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
@@ -214,6 +224,7 @@ def sincronizar_posiciones(cliente: Client, cuenta_id: str, login: str):
             "abierta_en": p.get("abierta_en"),
         }
         for p in datos.get("posiciones", [])
+        if p.get("ticket") is not None
     ]
     if filas:
         cliente.table("posiciones").insert(filas).execute()
@@ -232,6 +243,8 @@ def sincronizar_operaciones(cliente: Client, cuenta_id: str, login: str):
             op = json.loads(linea)
         except json.JSONDecodeError:
             continue
+        if op.get("ticket") is None:
+            continue  # línea de una versión que no conocemos: se ignora
         filas.append({
             "cuenta_id": cuenta_id,
             "ticket": op["ticket"],
@@ -242,6 +255,7 @@ def sincronizar_operaciones(cliente: Client, cuenta_id: str, login: str):
             "salida": op.get("salida"),
             "beneficio": op.get("beneficio"),
             "comision": op.get("comision"),
+            "swap": op.get("swap"),
             "abierta_en": op.get("abierta_en"),
             "cerrada_en": op.get("cerrada_en"),
         })
@@ -251,6 +265,71 @@ def sincronizar_operaciones(cliente: Client, cuenta_id: str, login: str):
         filas, on_conflict="cuenta_id,ticket", ignore_duplicates=True
     ).execute()
     archivo.unlink()  # el EA solo agrega; el agente vacía el archivo tras subirlo
+
+
+def sincronizar_spreads(cliente: Client, cuenta_id: str, login: str):
+    """Lo que costó cruzar el spread en cada posición, medido por el
+    recolector al abrirse. Solo crece, como las operaciones."""
+    archivo = COMUN / f"spreads_{login}.jsonl"
+    if not archivo.exists():
+        return
+    filas = []
+    for linea in archivo.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if not linea:
+            continue
+        try:
+            s = json.loads(linea)
+        except json.JSONDecodeError:
+            continue
+        if s.get("ticket") is None:
+            continue  # línea de una versión que no conocemos: se ignora
+        filas.append({
+            "cuenta_id": cuenta_id,
+            "ticket": s["ticket"],
+            "simbolo": s.get("simbolo"),
+            "volumen": s.get("volumen"),
+            "costo": s.get("costo"),
+            "medido_en": s.get("medido_en"),
+        })
+    if not filas:
+        return
+    cliente.table("spreads").upsert(
+        filas, on_conflict="cuenta_id,ticket", ignore_duplicates=True
+    ).execute()
+    archivo.unlink()
+
+
+def sincronizar_movimientos(cliente: Client, cuenta_id: str, login: str):
+    """Depósitos y retiros que registra MT5. Mismo criterio que operaciones:
+    solo se agregan, nunca se pisan."""
+    archivo = COMUN / f"movimientos_{login}.jsonl"
+    if not archivo.exists():
+        return
+    filas = []
+    for linea in archivo.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if not linea:
+            continue
+        try:
+            mov = json.loads(linea)
+        except json.JSONDecodeError:
+            continue
+        if mov.get("ticket") is None:
+            continue  # línea de una versión que no conocemos: se ignora
+        filas.append({
+            "cuenta_id": cuenta_id,
+            "ticket": mov["ticket"],
+            "monto": mov.get("monto"),
+            "comentario": mov.get("comentario"),
+            "ocurrido_en": mov.get("ocurrido_en"),
+        })
+    if not filas:
+        return
+    cliente.table("movimientos").upsert(
+        filas, on_conflict="cuenta_id,ticket", ignore_duplicates=True
+    ).execute()
+    archivo.unlink()
 
 
 def sincronizar_bots(cliente: Client, cuenta_id: str, login: str):
@@ -355,8 +434,10 @@ def parsear_plantilla(ruta: Path):
 
 
 def leer_plantillas():
-    """Recorre las plantillas que dejó el recolector en todos los terminales,
-    las interpreta y las borra (el recolector las vuelve a escribir)."""
+    """Recorre las plantillas que dejó el recolector en todos los terminales y
+    las interpreta. No se borran: el recolector las sobrescribe, y si se
+    borraran, un reinicio del agente dejaría los pares sin detectar hasta que
+    el recolector las volviera a escribir."""
     for ruta in CARPETA_TERMINALES.glob("*/MQL5/Profiles/Templates/MonitoreoMT5_tpl_*.tpl"):
         m = PATRON_TPL.search(ruta.name)
         if not m:
@@ -364,10 +445,6 @@ def leer_plantillas():
         datos = parsear_plantilla(ruta)
         if datos:
             cache_plantillas[int(m.group(1))] = datos
-        try:
-            ruta.unlink()
-        except OSError:
-            pass
 
 
 def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
@@ -408,6 +485,29 @@ def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
     print(f"[par] cuenta {login}: {rol or 'sin par'} {grupo or ''} {simbolo or ''}".strip())
 
 
+# --------------------------------------------------------------------
+# Versiones del recolector
+# --------------------------------------------------------------------
+# En la VPS conviven varias versiones del EA recolector a la vez, cada una en
+# cuentas distintas (la A quedó cerrada operando las cuentas cross, la B sigue
+# en desarrollo). El agente tiene que entenderlas a todas: lee cada campo con
+# .get(), ignora lo que no conoce y nunca da por sentado que un campo existe.
+#
+# La versión A no escribe el campo "version" porque se cerró antes de que se
+# inventara: si no viene, es esa.
+VERSION_BASE = "A"
+
+# login -> versión que reportó, para que aparezca en el log una sola vez.
+versiones: dict = {}
+
+
+def anotar_version(login: str, estado: dict):
+    version = estado.get("version") or VERSION_BASE
+    if versiones.get(login) != version:
+        versiones[login] = version
+        print(f"[version] cuenta {login}: recolector {version}")
+
+
 def sincronizar_datos(cliente: Client, cache_cuentas: dict, cache_reglas: dict):
     leer_plantillas()
     for login in logins_detectados():
@@ -419,11 +519,54 @@ def sincronizar_datos(cliente: Client, cache_cuentas: dict, cache_reglas: dict):
             cache_cuentas[login] = id_cuenta(cliente, login, estado.get("broker", ""))
         cuenta_id = cache_cuentas[login]
 
-        subir_estado(cliente, cuenta_id, estado, cache_reglas.get(cuenta_id))
-        sincronizar_posiciones(cliente, cuenta_id, login)
-        sincronizar_operaciones(cliente, cuenta_id, login)
-        sincronizar_bots(cliente, cuenta_id, login)
-        sincronizar_par(cliente, cuenta_id, login)
+        anotar_version(login, estado)
+
+        # Cada cuenta se sincroniza por su cuenta: si una falla -porque la
+        # escribió una versión del recolector que no conocemos, o porque el
+        # archivo estaba a medio escribir- las demás siguen subiendo igual.
+        try:
+            subir_estado(cliente, cuenta_id, estado, cache_reglas.get(cuenta_id))
+            sincronizar_posiciones(cliente, cuenta_id, login)
+            sincronizar_operaciones(cliente, cuenta_id, login)
+            sincronizar_movimientos(cliente, cuenta_id, login)
+            sincronizar_spreads(cliente, cuenta_id, login)
+            sincronizar_bots(cliente, cuenta_id, login)
+            sincronizar_par(cliente, cuenta_id, login)
+            autoconfigurar(cliente, cuenta_id, login)
+        except Exception as e:
+            print(f"[datos] cuenta {login} ({versiones.get(login, VERSION_BASE)}): {e}")
+
+
+# Cuentas ya autoconfiguradas en esta corrida, para no reintentar cada minuto.
+autoconfiguradas: set = set()
+
+
+def autoconfigurar(cliente: Client, cuenta_id: str, login: str):
+    """Le pone la prop firm a una cuenta nueva, deduciéndola del nombre del
+    broker que reporta MT5.
+
+    Los límites en dinero NO se calculan acá: el agente no escribe reglas, a
+    propósito, para que un problema en la VPS no toque los límites. De eso se
+    encarga el panel, que además necesita que le indiquen la fase."""
+    if cuenta_id in autoconfiguradas:
+        return
+
+    cuenta = cliente.table("cuentas").select("prop_firm,broker").eq("id", cuenta_id).single().execute().data
+    if cuenta.get("prop_firm") or not cuenta.get("broker"):
+        autoconfiguradas.add(cuenta_id)
+        return
+
+    equivalencia = (
+        cliente.table("brokers_prop_firm")
+        .select("prop_firm").eq("broker", cuenta["broker"]).limit(1).execute()
+    )
+    if not equivalencia.data:
+        return  # broker desconocido: se reintenta cuando se cargue la equivalencia
+
+    prop_firm = equivalencia.data[0]["prop_firm"]
+    cliente.table("cuentas").update({"prop_firm": prop_firm}).eq("id", cuenta_id).execute()
+    autoconfiguradas.add(cuenta_id)
+    print(f"[auto] cuenta {login}: prop firm {prop_firm}")
 
 
 def leer_reglas(cliente: Client, cache_cuentas: dict) -> dict:
@@ -431,6 +574,43 @@ def leer_reglas(cliente: Client, cache_cuentas: dict) -> dict:
         return {}
     filas = cliente.table("reglas").select("*").in_("cuenta_id", list(cache_cuentas.values())).execute()
     return {f["cuenta_id"]: f for f in filas.data}
+
+
+# --------------------------------------------------------------------
+# Tipos de cuenta
+# --------------------------------------------------------------------
+# No todas las cuentas se miran igual. Las de fondeo tienen reglas de prop
+# firm (pérdida diaria, drawdown, objetivo) y se dan por perdidas al cruzarlas.
+# Una cuenta de capital inversor no tiene nada de eso: aplicarle esa
+# vigilancia la marcaría "failed" sin sentido.
+TIPO_FONDEO = "fondeo"
+
+# cuenta_id -> tipo. Se refresca con las reglas, una vez por minuto.
+cache_tipos: dict = {}
+
+
+def leer_tipos(cliente: Client, cache_cuentas: dict) -> dict:
+    """Sin dato se asume cuenta de fondeo, que es lo que eran todas antes de
+    que existiera esta distinción.
+
+    Si la columna todavía no existe en Supabase, el agente sigue andando
+    como antes: no hay que coordinar el orden entre subir este archivo y
+    correr el SQL."""
+    if not cache_cuentas:
+        return {}
+    try:
+        filas = cliente.table("cuentas").select("id,tipo").in_("id", list(cache_cuentas.values())).execute()
+    except Exception as e:
+        global aviso_tipos
+        if not aviso_tipos:
+            aviso_tipos = True
+            print(f"[tipos] sin columna 'tipo' todavía, todas se tratan como fondeo: {e}")
+        return {}
+    return {f["id"]: (f.get("tipo") or TIPO_FONDEO) for f in filas.data}
+
+
+# Para no repetir el aviso de columna faltante en cada ciclo.
+aviso_tipos = False
 
 
 # --------------------------------------------------------------------
@@ -510,6 +690,10 @@ def confirmar_interruptores(cliente: Client, cache_cuentas: dict):
 
 def vigilar_limites(cliente: Client, cache_cuentas: dict, cache_reglas: dict, cruzados: dict):
     for login, cuenta_id in cache_cuentas.items():
+        # Solo las cuentas de fondeo tienen reglas de prop firm que vigilar.
+        if cache_tipos.get(cuenta_id, TIPO_FONDEO) != TIPO_FONDEO:
+            continue
+
         reglas = cache_reglas.get(cuenta_id)
         if not reglas:
             continue
@@ -518,17 +702,32 @@ def vigilar_limites(cliente: Client, cache_cuentas: dict, cache_reglas: dict, cr
             continue
 
         equity = estado["equity"]
+
+        # Equity en cero: la prop firm dio de baja la cuenta. Pasa cuando se
+        # rompe una regla operando fuera de la VPS, así que el panel no ve la
+        # caída, solo el resultado.
+        if equity == 0:
+            marcar_violacion(cliente, cuenta_id, login, "cuenta cerrada por la prop firm")
+            continue
         saldo_inicial = reglas.get("saldo_inicial")
         drawdown_max = reglas.get("drawdown_max")
+        perdida_diaria_max = reglas.get("perdida_diaria_max")
 
-        # Pérdida diaria (perdida_diaria_max) queda pendiente: depende de la
-        # hora de reset de cada prop firm, que el diseño todavía no define
-        # (ver docs/, sección "Por decidir"). Se agrega cuando se resuelva.
+        rota_total = bool(saldo_inicial and drawdown_max
+                          and (saldo_inicial - equity) >= drawdown_max)
 
-        if not saldo_inicial or not drawdown_max:
-            continue
+        # La pérdida diaria se mide contra el equity con el que arrancó el día.
+        # Hay que detectarla en el momento: al día siguiente el contador se
+        # reinicia y la violación ya no se ve en los números.
+        inicio_dia = cache_inicio_dia.get(cuenta_id)
+        rota_diaria = bool(perdida_diaria_max and inicio_dia
+                           and (inicio_dia[0] - equity) >= perdida_diaria_max)
 
-        cruzo = (saldo_inicial - equity) >= drawdown_max
+        if rota_total or rota_diaria:
+            marcar_violacion(cliente, cuenta_id, login,
+                             "pérdida máxima" if rota_total else "pérdida diaria")
+
+        cruzo = rota_total or rota_diaria
         ya_avisado = cruzados.get(cuenta_id, False)
 
         if cruzo and not ya_avisado:
@@ -536,6 +735,20 @@ def vigilar_limites(cliente: Client, cache_cuentas: dict, cache_reglas: dict, cr
             cruzados[cuenta_id] = True
         elif not cruzo and ya_avisado:
             cruzados[cuenta_id] = False
+
+
+# Cuentas ya marcadas como rotas, para no repetir el update.
+violadas: set = set()
+
+
+def marcar_violacion(cliente: Client, cuenta_id: str, login: str, motivo: str):
+    """Una violación no se deshace: la cuenta queda 'failed' para siempre,
+    aunque al día siguiente los números vuelvan a estar en orden."""
+    if cuenta_id in violadas:
+        return
+    cliente.table("cuentas").update({"resultado": "failed"}).eq("id", cuenta_id).execute()
+    violadas.add(cuenta_id)
+    print(f"[violacion] cuenta {login}: {motivo}")
 
 
 # --------------------------------------------------------------------
@@ -561,6 +774,7 @@ def principal():
             try:
                 sincronizar_datos(cliente, cache_cuentas, cache_reglas)
                 cache_reglas = leer_reglas(cliente, cache_cuentas)
+                cache_tipos.update(leer_tipos(cliente, cache_cuentas))
             except Exception as e:
                 print(f"[datos] error: {e}")
             t_datos = ahora
