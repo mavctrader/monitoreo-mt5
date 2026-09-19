@@ -117,7 +117,8 @@ async function cargarCuentas() {
     return;
   }
 
-  listaCuentas.innerHTML = "";
+  // No se vacía acá: de eso se encarga dibujarEnColumnas(), que además
+  // sostiene el alto para que la página no dé un salto al refrescar.
 
   const grupos = new Map();
   const sueltas = [];
@@ -208,6 +209,15 @@ function valorGuardado(tarjeta, campo) {
 // orden. Así no hay superposiciones ni posiciones a medio camino: una tarjeta
 // siempre ocupa un lugar concreto de una columna.
 function dibujarEnColumnas() {
+  // El panel se redibuja entero cada 10 segundos. Al vaciarlo la página se
+  // encoge de golpe, el navegador no tiene a dónde scrollear y te devuelve
+  // arriba de todo - se notaba sobre todo en el celular, donde la lista es
+  // larga. Se le sostiene el alto mientras se rearma y se devuelve el scroll
+  // donde estaba.
+  const scrollPrevio = window.scrollY;
+  const altoPrevio = listaCuentas.offsetHeight;
+  if (altoPrevio) listaCuentas.style.minHeight = `${altoPrevio}px`;
+
   listaCuentas.innerHTML = "";
 
   // clientWidth incluye el relleno del panel, así que lo descuento antes de
@@ -254,6 +264,9 @@ function dibujarEnColumnas() {
   porColumna.forEach((lista, i) => {
     for (const t of lista) columnas[i].appendChild(t.elemento);
   });
+
+  listaCuentas.style.minHeight = "";
+  if (window.scrollY !== scrollPrevio) window.scrollTo(0, scrollPrevio);
 }
 
 function hacerMovible(tarjeta) {
