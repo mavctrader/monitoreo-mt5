@@ -4,7 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Centro de Monitoreo MT5</title>
-<link rel="stylesheet" href="assets/style.css">
+<!-- El ?v= es para que el navegador no siga usando la versión vieja que tiene
+     guardada. HAY QUE SUBIRLE EL NÚMERO EN CADA CAMBIO de style.css o
+     panel.js: si no, el celular puede quedarse días con la copia anterior. -->
+<link rel="stylesheet" href="assets/style.css?v=4">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
@@ -158,6 +161,6 @@
   </article>
 </template>
 
-<script src="assets/panel.js"></script>
+<script src="assets/panel.js?v=4"></script>
 </body>
 </html>

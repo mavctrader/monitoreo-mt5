@@ -80,8 +80,14 @@ function mostrarPanel() {
   temporizadorRefresco = setInterval(refrescar, INTERVALO_REFRESCO_MS);
 }
 
+// Momento del último scroll. Redibujar el panel justo mientras estás
+// deslizando el dedo es lo que hacía saltar la pantalla en el celular.
+let ultimoScrollEn = 0;
+window.addEventListener("scroll", () => { ultimoScrollEn = Date.now(); }, { passive: true });
+
 function refrescar() {
   if (arrastrando) return; // no mover el piso mientras se acomodan las tarjetas
+  if (Date.now() - ultimoScrollEn < 2000) return; // estás mirando: se espera al ciclo siguiente
   // Primero las de capital inversor: la tabla de fondeo necesita saber
   // cuáles son para no listarlas dos veces.
   cargarInversor().then(() => cargarBalance()).then(cargarResumen);
@@ -265,8 +271,14 @@ function dibujarEnColumnas() {
     for (const t of lista) columnas[i].appendChild(t.elemento);
   });
 
-  listaCuentas.style.minHeight = "";
+  // El alto se libera recién después de acomodar el scroll: algunos
+  // navegadores del celular recalculan el scroll un cuadro más tarde, y si se
+  // suelta antes te vuelven a mandar arriba.
   if (window.scrollY !== scrollPrevio) window.scrollTo(0, scrollPrevio);
+  requestAnimationFrame(() => {
+    listaCuentas.style.minHeight = "";
+    if (window.scrollY !== scrollPrevio) window.scrollTo(0, scrollPrevio);
+  });
 }
 
 function hacerMovible(tarjeta) {
