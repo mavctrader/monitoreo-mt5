@@ -106,6 +106,13 @@ header h1 { font-size: 1.1rem; margin: 0; }
 @media (max-width: 700px) {
   #lista-cuentas { padding: 1rem; }
   .columna { width: 100%; flex: 1 1 auto; }
+
+  /* Los desplegables de arriba son tablas anchas, para mirar sentado. En el
+     celular se monitorea: van solo las tarjetas. Se siguen cargando igual,
+     nada más que no se muestran. */
+  #plantillas-seccion,
+  #resumen-seccion,
+  #inversor-seccion { display: none; }
 }
 
 .movible { cursor: grab; touch-action: none; }
