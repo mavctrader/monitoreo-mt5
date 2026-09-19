@@ -4,13 +4,15 @@
 //|  No opera. No sale a internet. No guarda credenciales.           |
 //|  Un gráfico por terminal.                                        |
 //|                                                                  |
-//|  VERSIÓN A - CERRADA EL 19/09/2026. Va en las cuentas que        |
-//|  operan cross. No se modifica, no se sobrescribe, no se copia    |
-//|  nada encima: queda tal cual como registro de lo que corrió.     |
-//|  Todo lo que venga de acá en adelante va en EA_Recolector_B.     |
+//|  VERSIÓN A - Va en las cuentas de fondeo que operan cross.       |
+//|  Todo lo nuevo va en EA_Recolector_B; acá solo entran arreglos   |
+//|  de errores, y cada uno sube el número de versión.               |
+//|                                                                  |
+//|  1.01 - la comisión se cobra en las dos puntas y solo se estaba  |
+//|         leyendo la del cierre: quedaba a la mitad.               |
 //+------------------------------------------------------------------+
 #property copyright "Centro de Monitoreo MT5"
-#property version   "1.00"
+#property version   "1.01"
 #property strict
 
 input int IntervaloSegundos = 5; // cada cuánto escribe y revisa órdenes de descarga
@@ -264,24 +266,41 @@ void EscribirOperacionesNuevas()
       long posicionId = (long)HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
       string simbolo = HistoryDealGetString(ticket, DEAL_SYMBOL);
 
-      // Precio y hora de apertura: primer deal de la misma posición (DEAL_ENTRY_IN).
+      // Precio y hora de apertura: primer deal de la misma posición
+      // (DEAL_ENTRY_IN). De paso se junta la comisión de apertura: MT5 la
+      // cobra en las dos puntas y el deal de cierre solo trae la suya.
       double entrada = 0;
       datetime abierta = 0;
+      double comisionEntrada = 0;
+      double volumenEntrada = 0;
       if(HistorySelectByPosition(posicionId))
         {
          int nDeals = HistoryDealsTotal();
          for(int j = 0; j < nDeals; j++)
            {
             ulong t2 = HistoryDealGetTicket(j);
-            if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(t2, DEAL_ENTRY) == DEAL_ENTRY_IN)
+            if(t2 == 0)
+               continue;
+            if((ENUM_DEAL_ENTRY)HistoryDealGetInteger(t2, DEAL_ENTRY) != DEAL_ENTRY_IN)
+               continue;
+            if(entrada == 0)
               {
                entrada = HistoryDealGetDouble(t2, DEAL_PRICE);
                abierta = (datetime)HistoryDealGetInteger(t2, DEAL_TIME);
-               break;
               }
+            comisionEntrada += HistoryDealGetDouble(t2, DEAL_COMMISSION);
+            volumenEntrada += HistoryDealGetDouble(t2, DEAL_VOLUME);
            }
         }
       HistorySelect(desde, TimeCurrent() + 1); // restaurar el conjunto de deals tras la consulta por posición
+
+      // La comisión de apertura se reparte según el volumen que cierra este
+      // deal: si la posición se cierra en partes, cada parte se lleva la
+      // porción que le toca y no la comisión entera.
+      if(volumenEntrada > 0)
+         comision += comisionEntrada * (volumen / volumenEntrada);
+      else
+         comision += comisionEntrada;
 
       string json = "{"
          + "\"cuenta_id\":" + LoginStr() + ","

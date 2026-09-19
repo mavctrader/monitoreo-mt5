@@ -20,14 +20,16 @@ docs/                PDFs de arquitectura y diagramas
 
 ## Versiones del recolector
 
-Cada versión se cierra en una fecha y no se vuelve a tocar. La siguiente arranca
-donde quedó la anterior, con su propio nombre. **Nunca se copia una sobre otra ni
-se sobrescribe una versión cerrada.**
+Cada versión tiene su propio nombre y su propia carpeta. **Nunca se copia una
+sobre otra.** Las mejoras van siempre en la versión viva; a una versión que ya
+está operando solo entran **arreglos de errores**, y cada arreglo sube el
+número de versión (`#property version`) para poder saber qué build está
+compilado en cada terminal.
 
 | Versión | Estado | Dónde va |
 |---|---|---|
-| `EA_Recolector_A` | Cerrada el 19/09/2026 | Las cuentas de fondeo que operan cross. Queda como registro. |
-| `EA_Recolector_B` | Abierta el 19/09/2026 | Línea de fondeo, versión viva: acá van los cambios. |
+| `EA_Recolector_A` | En producción | Las cuentas de fondeo que operan cross. Solo arreglos. |
+| `EA_Recolector_B` | Versión viva | Línea de fondeo: acá van los cambios nuevos. |
 | `EA_Recolector_Inversor_A` | Abierta el 19/09/2026 | Cuentas de capital inversor (Darwinex Zero). Línea propia. |
 
 Las cuentas de capital inversor llevan su propio recolector, no el de fondeo:
