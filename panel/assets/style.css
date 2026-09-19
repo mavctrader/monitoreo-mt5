@@ -390,6 +390,10 @@ details summary { cursor: pointer; }
 }
 .activo-bloque:last-of-type { border-bottom: none; }
 .activo-bloque .costo-nombre { color: var(--texto); font-weight: 500; }
+/* Lo del día y el acumulado, juntos a la derecha del nombre del activo. */
+.activo-cifras { display: flex; gap: 0.6rem; align-items: baseline; }
+.activo-hoy { font-size: 0.68rem; }
+.tenue { color: var(--texto-tenue); }
 .activo-bloque .barra-aporte { margin-bottom: 0.35rem; }
 .activo-costo-total { font-size: 0.68rem; margin-bottom: 0.2rem; }
 .activo-costo-total .etiqueta { color: var(--texto-tenue); }

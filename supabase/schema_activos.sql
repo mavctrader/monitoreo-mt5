@@ -67,6 +67,7 @@ select
   t.swap,
   t.spread,
   t.neto,
+  t.hoy,
   dd.drawdown_max,
   dd.drawdown_en
 from (
@@ -80,6 +81,10 @@ from (
     sum(x.comision)      as comision,
     sum(x.swap)          as swap,
     sum(x.spread)        as spread,
+    -- Lo que dejó el activo en el día de hoy, contado en UTC. Son las
+    -- operaciones que se cerraron hoy: no hay prop firm que imponga una
+    -- hora de reset en una cuenta de portafolio.
+    sum(x.hoy)           as hoy,
     -- Lo que el activo le pone o le saca al portafolio. La comisión ya viene
     -- en negativo y el swap con su signo, así que se suman.
     --
@@ -98,7 +103,13 @@ from (
       0::numeric as flotante,
       coalesce(o.comision, 0) as comision,
       coalesce(o.swap, 0) as swap,
-      0::numeric as spread
+      0::numeric as spread,
+      case
+        when o.cerrada_en is not null
+         and (o.cerrada_en at time zone 'UTC')::date = (now() at time zone 'UTC')::date
+        then coalesce(o.beneficio, 0) + coalesce(o.comision, 0) + coalesce(o.swap, 0)
+        else 0
+      end as hoy
     from operaciones o
     where o.simbolo is not null
 
@@ -113,6 +124,7 @@ from (
       coalesce(p.beneficio, 0),
       0::numeric,
       coalesce(p.swap, 0),
+      0::numeric,
       0::numeric
     from posiciones p
     where p.simbolo is not null
@@ -124,7 +136,8 @@ from (
       s.cuenta_id, s.simbolo,
       0, 0,
       0::numeric, 0::numeric, 0::numeric, 0::numeric,
-      coalesce(s.costo, 0)
+      coalesce(s.costo, 0),
+      0::numeric
     from spreads s
     where s.simbolo is not null
   ) x

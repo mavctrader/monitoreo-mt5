@@ -563,11 +563,15 @@ function renderizarActivosDeLaCuenta(nodo, cuenta) {
   for (const a of activos) bloque.appendChild(filaDeActivo(a, mayor));
 
   const suma = (campo) => activos.reduce((t, a) => t + (Number(a[campo]) || 0), 0);
+  const hoyTotal = suma("hoy");
   const total = document.createElement("div");
   total.className = "activo-total";
   total.innerHTML = `
     <span class="etiqueta">Total del portafolio</span>
-    <span class="${suma("neto") < 0 ? "negativo" : "positivo"}">${formatearMoneda(suma("neto"))}</span>
+    <span class="activo-cifras">
+      <span class="activo-hoy ${hoyTotal < 0 ? "negativo" : hoyTotal > 0 ? "positivo" : "tenue"}">hoy ${hoyTotal > 0 ? "+" : ""}${formatearMoneda(hoyTotal)}</span>
+      <span class="${suma("neto") < 0 ? "negativo" : "positivo"}">${formatearMoneda(suma("neto"))}</span>
+    </span>
   `;
   bloque.appendChild(total);
 }
@@ -589,12 +593,17 @@ function filaDeActivo(a, mayor) {
         .join("")
     : "";
 
+  const hoy = Number(a.hoy) || 0;
+
   const fila = document.createElement("div");
   fila.className = "costo-cuenta activo-bloque";
   fila.innerHTML = `
     <div class="costo-encabezado">
       <span class="costo-nombre">${a.simbolo}</span>
-      <span class="${neto < 0 ? "negativo" : "positivo"}">${formatearMoneda(neto)}</span>
+      <span class="activo-cifras">
+        <span class="activo-hoy ${hoy < 0 ? "negativo" : hoy > 0 ? "positivo" : "tenue"}" title="Lo que dejó hoy este activo (operaciones cerradas desde las 00:00 UTC)">hoy ${hoy > 0 ? "+" : ""}${formatearMoneda(hoy)}</span>
+        <span class="${neto < 0 ? "negativo" : "positivo"}">${formatearMoneda(neto)}</span>
+      </span>
     </div>
     <div class="barra-aporte"><span class="barra-relleno ${neto < 0 ? "resta" : "suma"}" style="width:${(Math.abs(neto) / mayor) * 100}%"></span></div>
     <div class="costo-encabezado activo-costo-total">
