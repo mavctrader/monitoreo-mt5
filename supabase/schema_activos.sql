@@ -9,6 +9,10 @@
 --
 -- Correr en el SQL Editor de Supabase (rol postgres).
 
+-- El swap que llevan acumulado las posiciones todavía abiertas. Lo reporta
+-- el recolector de capital inversor; los otros no lo mandan y queda vacío.
+alter table posiciones add column if not exists swap numeric;
+
 drop view if exists resumen_activos;
 
 create view resumen_activos
@@ -47,13 +51,16 @@ from (
 
   union all
 
-  -- Posiciones todavía abiertas: entran por el flotante
+  -- Posiciones todavía abiertas: entran por el flotante, y con el swap que
+  -- ya llevan acumulado sin haberse cerrado
   select
     p.cuenta_id, p.simbolo,
     0, 1,
     0::numeric,
     coalesce(p.beneficio, 0),
-    0::numeric, 0::numeric, 0::numeric
+    0::numeric,
+    coalesce(p.swap, 0),
+    0::numeric
   from posiciones p
   where p.simbolo is not null
 

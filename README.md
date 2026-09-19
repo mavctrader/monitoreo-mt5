@@ -8,8 +8,9 @@ Diseño completo en [`docs/Centro de Monitoreo MT5 - Arquitectura.pdf`](docs/Cen
 
 ```
 mql5/
-  EA_Recolector_A/   Versión cerrada el 19/09/2026: la que opera en la VPS (un gráfico por terminal)
-  EA_Recolector_B/   Versión viva: acá van los cambios de acá en adelante
+  EA_Recolector_A/          Fondeo, versión cerrada el 19/09/2026: la que opera en la VPS
+  EA_Recolector_B/          Fondeo, versión viva: acá van los cambios
+  EA_Recolector_Inversor_A/ Cuentas de capital inversor (Darwinex Zero)
   Include/           Interruptor.mqh - lo que cada bot propio incluye para obedecer parar/arrancar
 agente/              Programa que corre en la VPS: junta Common, sube a Supabase, vigila límites
 supabase/            Esquema SQL y políticas RLS de las 7 tablas
@@ -25,8 +26,14 @@ se sobrescribe una versión cerrada.**
 
 | Versión | Estado | Dónde va |
 |---|---|---|
-| `EA_Recolector_A` | Cerrada el 19/09/2026 | Las cuentas que operan cross. Queda como registro. |
-| `EA_Recolector_B` | Abierta el 19/09/2026 | Versión viva: acá van todos los cambios. |
+| `EA_Recolector_A` | Cerrada el 19/09/2026 | Las cuentas de fondeo que operan cross. Queda como registro. |
+| `EA_Recolector_B` | Abierta el 19/09/2026 | Línea de fondeo, versión viva: acá van los cambios. |
+| `EA_Recolector_Inversor_A` | Abierta el 19/09/2026 | Cuentas de capital inversor (Darwinex Zero). Línea propia. |
+
+Las cuentas de capital inversor llevan su propio recolector, no el de fondeo:
+separa comisión de swap y además reporta el swap acumulado de las posiciones
+abiertas, que en un portafolio sostenido en el tiempo es parte de lo que cada
+activo está costando.
 
 **Las dos corren a la vez en la VPS**, en cuentas distintas. Eso es seguro
 porque cada archivo que escribe el EA lleva el número de cuenta en el nombre

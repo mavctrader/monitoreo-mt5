@@ -221,6 +221,9 @@ def sincronizar_posiciones(cliente: Client, cuenta_id: str, login: str):
             "sl": p.get("sl"),
             "tp": p.get("tp"),
             "beneficio": p.get("beneficio"),
+            # Lo escribe el recolector de capital inversor; los otros no lo
+            # mandan todavía y queda vacío, que es lo mismo que antes.
+            "swap": p.get("swap"),
             "abierta_en": p.get("abierta_en"),
         }
         for p in datos.get("posiciones", [])
