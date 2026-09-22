@@ -806,7 +806,7 @@ async function cargarResumen() {
     const fila = document.createElement("tr");
     fila.innerHTML = `
       <td><span class="indicador ${claseEstado}" title="${tituloEstado}"></span></td>
-      <td>${c.prop_firm ?? "-"}</td>
+      <td>${enlaceTerminos(c.prop_firm)}</td>
       <td class="col-plan"></td>
       <td class="col-fase"></td>
       <td class="col-metodo"></td>
@@ -904,6 +904,13 @@ async function cargarActivos() {
 async function cargarDrawdown() {
   const { data, error } = await sb.from("drawdown_cuenta").select("*");
   drawdownCache = error ? [] : data;
+}
+
+// El nombre de la firma lleva a sus términos de contrato: lo que hay que
+// revisar antes de configurar un robot en una cuenta de esa firma.
+function enlaceTerminos(propFirm) {
+  if (!propFirm) return "-";
+  return `<a class="enlace-firma" href="terminos.html?firma=${encodeURIComponent(propFirm)}" title="Ver los términos de contrato de ${propFirm}">${propFirm}</a>`;
 }
 
 // Con la sección cerrada, el título tiene que decir lo esencial igual.

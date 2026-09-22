@@ -1,0 +1,155 @@
+/* Página de términos de contrato. Reusa la paleta y la tipografía del panel
+   (style.css); acá va solo lo propio de esta pantalla. */
+
+#vista-terminos { padding-bottom: 2rem; }
+
+.aviso-encabezado {
+  margin: 0.8rem 1.5rem 0;
+  max-width: 70ch;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--texto-tenue);
+}
+
+#cuerpo {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  padding: 1rem 1.5rem;
+}
+
+/* Lista de firmas a la izquierda: se salta de una a otra sin recargar. */
+#lista-firmas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 0 0 200px;
+}
+.firma {
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--borde);
+  color: var(--texto-tenue);
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.firma:hover { border-color: var(--celeste); }
+.firma.activa {
+  background: var(--panel);
+  border-color: var(--celeste);
+  color: var(--texto);
+}
+/* Punto celeste en las firmas a las que todavía no les escribiste nada. */
+.sin-datos { color: var(--celeste); margin-left: 0.35rem; font-weight: 700; }
+
+#detalle {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+}
+.detalle-encabezado {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+.detalle-encabezado h2 { margin: 0; font-size: 1rem; }
+
+.campo { display: block; margin-bottom: 0.8rem; }
+.etiqueta-campo {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--texto-tenue);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.3rem;
+}
+#notas, #fuente {
+  width: 100%;
+  background: var(--fondo);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  color: var(--texto);
+  padding: 0.6rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+/* Texto libre: se respetan los saltos de línea y los guiones tal como los
+   escribís, sin ningún formateo automático. */
+#notas { resize: vertical; white-space: pre-wrap; }
+#notas:focus, #fuente:focus { outline: none; border-color: var(--celeste); }
+
+.acciones-detalle {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+#btn-guardar {
+  background: var(--celeste);
+  border: none;
+  color: #06222e;
+  font-weight: 600;
+  padding: 0.45rem 1.1rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+#btn-guardar:disabled { opacity: 0.5; cursor: default; }
+
+.boton {
+  display: inline-block;
+  background: transparent;
+  border: 1px solid var(--borde);
+  color: var(--texto-tenue);
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 0.8rem;
+}
+.boton:hover { border-color: var(--celeste); color: var(--texto); }
+
+#form-firma {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 1.5rem;
+  max-width: 460px;
+}
+#form-firma input {
+  flex: 1 1 auto;
+  background: var(--fondo);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  color: var(--texto);
+  padding: 0.45rem 0.7rem;
+  font-size: 0.8rem;
+}
+#form-firma button {
+  background: transparent;
+  border: 1px solid var(--borde);
+  color: var(--texto-tenue);
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* En el celular la lista de firmas pasa arriba, en fila. */
+@media (max-width: 700px) {
+  #cuerpo { flex-direction: column; padding: 1rem; }
+  #lista-firmas {
+    flex: 1 1 auto;
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  #detalle { width: 100%; }
+  .aviso-encabezado { margin: 0.8rem 1rem 0; }
+  #form-firma { padding: 0 1rem; }
+}

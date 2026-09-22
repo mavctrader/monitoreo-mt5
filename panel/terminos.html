@@ -1,0 +1,74 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Términos de contrato · Centro de Monitoreo MT5</title>
+<link rel="stylesheet" href="assets/style.css?v=11">
+<link rel="stylesheet" href="assets/terminos.css?v=1">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+<section id="vista-login">
+  <form id="form-login">
+    <h1>Términos de contrato</h1>
+    <input type="email" id="email" placeholder="Email" autocomplete="username" required>
+    <input type="password" id="password" placeholder="Contraseña" autocomplete="current-password" required>
+    <button type="submit">Entrar</button>
+    <p id="error-login" class="error"></p>
+  </form>
+</section>
+
+<section id="vista-terminos" hidden>
+  <header>
+    <h1>Términos de contrato</h1>
+    <div class="acciones">
+      <a class="boton" href="index.html">Volver al panel</a>
+    </div>
+  </header>
+
+  <p class="aviso-encabezado">
+    Lo que hay que tener presente antes de configurar un robot. Va por firma:
+    las restricciones de qué se puede operar son las mismas para la cuenta de
+    5k y para la de 100k — lo que cambia con el tamaño son los montos, y esos
+    están en las plantillas de reglas del panel.
+  </p>
+
+  <div id="cuerpo">
+    <nav id="lista-firmas"></nav>
+
+    <main id="detalle" hidden>
+      <div class="detalle-encabezado">
+        <h2 id="titulo-firma"></h2>
+        <span id="actualizado" class="tenue"></span>
+      </div>
+
+      <label class="campo">
+        <span class="etiqueta-campo">Restricciones y condiciones</span>
+        <textarea id="notas" rows="22" spellcheck="true"
+          placeholder="Por ejemplo:&#10;&#10;- Copia entre cuentas: permitida solo entre cuentas de esta firma.&#10;- Prohibido HFT y scalping de tick.&#10;- Noticias: no abrir ni cerrar 2 minutos alrededor de alto impacto.&#10;- Fin de semana: se puede mantener.&#10;- Duración mínima de trade: 60 segundos.&#10;- Consistencia: ningún día puede superar el 50% de la ganancia total.&#10;- Retiro mínimo 50 USD, cada 14 días."></textarea>
+      </label>
+
+      <label class="campo">
+        <span class="etiqueta-campo">Enlace al contrato o a la página de reglas</span>
+        <input type="url" id="fuente" placeholder="https://...">
+      </label>
+
+      <div class="acciones-detalle">
+        <button id="btn-guardar">Guardar</button>
+        <a id="abrir-fuente" class="boton" target="_blank" rel="noopener" hidden>Abrir el contrato ↗</a>
+        <span id="estado-guardado" class="tenue"></span>
+      </div>
+    </main>
+  </div>
+
+  <form id="form-firma">
+    <input type="text" id="firma-nueva" placeholder="Agregar una firma que no esté en la lista">
+    <button type="submit">Agregar</button>
+  </form>
+</section>
+
+<script src="assets/terminos.js?v=1"></script>
+</body>
+</html>

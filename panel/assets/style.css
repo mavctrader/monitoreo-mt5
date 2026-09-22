@@ -359,6 +359,22 @@ details summary { cursor: pointer; }
 }
 .tabla-resumen td { padding: 0.3rem 0.5rem; border-top: 1px solid var(--borde); font-variant-numeric: tabular-nums; }
 .tabla-resumen .col-cuenta { font-family: "Courier New", monospace; color: var(--texto-tenue); }
+/* El nombre de la firma abre sus términos de contrato. */
+.enlace-firma { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--borde); }
+.enlace-firma:hover { color: var(--celeste); border-bottom-color: var(--celeste); }
+
+/* Enlace con aspecto de botón, en la cabecera del panel. */
+.boton-enlace {
+  background: transparent;
+  border: 1px solid var(--borde);
+  color: var(--texto-tenue);
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 0.8rem;
+}
+.boton-enlace:hover { border-color: var(--celeste); color: var(--texto); }
 /* Tamaño y saldo alineados a la derecha, para comparar montos de un vistazo. */
 .tabla-resumen th:nth-child(7), .tabla-resumen td:nth-child(7),
 .tabla-resumen th:nth-child(8), .tabla-resumen td:nth-child(8) { text-align: right; }
