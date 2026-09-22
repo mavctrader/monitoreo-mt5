@@ -113,6 +113,10 @@ header h1 { font-size: 1.1rem; margin: 0; }
   #plantillas-seccion,
   #resumen-seccion,
   #inversor-seccion { display: none; }
+
+  /* Los términos de contrato se consultan al configurar un robot, sentado en
+     la computadora. En el celular el botón no va. */
+  .boton-enlace { display: none; }
 }
 
 .movible { cursor: grab; touch-action: none; }
