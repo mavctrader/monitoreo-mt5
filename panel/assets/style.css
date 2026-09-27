@@ -552,8 +552,8 @@ details summary { cursor: pointer; }
   margin-right: 0.35rem;
   vertical-align: middle;
 }
-/* Verde: hay una posición abierta ahora mismo en ese activo. */
-.punto-operando.on { background: var(--verde); }
+/* Celeste: hay una posición abierta ahora mismo en ese activo. */
+.punto-operando.on { background: var(--celeste); }
 .punto-operando.off { background: var(--texto-tenue); opacity: 0.4; }
 
 /* Número mágico: identifica qué robot opera el activo. */
