@@ -13,6 +13,10 @@
 -- el recolector de capital inversor; los otros no lo mandan y queda vacío.
 alter table posiciones add column if not exists swap numeric;
 
+-- Numero magico del EA que abrio la operacion: identifica al robot.
+alter table posiciones  add column if not exists magic bigint;
+alter table operaciones add column if not exists magic bigint;
+
 -- Peor caída de cada activo desde su mejor momento, y cuándo tocó fondo.
 -- Se arma con la curva de resultado acumulado de ese símbolo, operación
 -- cerrada tras operación cerrada.
@@ -103,6 +107,7 @@ select
   t.spread,
   t.neto,
   t.hoy,
+  t.magics,
   dd.drawdown_max,
   dd.drawdown_en
 from (
@@ -120,6 +125,10 @@ from (
     -- operaciones que se cerraron hoy: no hay prop firm que imponga una
     -- hora de reset en una cuenta de portafolio.
     sum(x.hoy)           as hoy,
+    -- Los numeros magicos que operaron ese simbolo: dicen que robot es.
+    -- Se descarta el 0, que es una operacion abierta a mano.
+    string_agg(distinct x.magic::text, ', ')
+      filter (where x.magic is not null and x.magic <> 0) as magics,
     -- Lo que el activo le pone o le saca al portafolio. La comisión ya viene
     -- en negativo y el swap con su signo, así que se suman.
     --
@@ -144,7 +153,8 @@ from (
          and (o.cerrada_en at time zone 'UTC')::date = (now() at time zone 'UTC')::date
         then coalesce(o.beneficio, 0) + coalesce(o.comision, 0) + coalesce(o.swap, 0)
         else 0
-      end as hoy
+      end as hoy,
+      o.magic
     from operaciones o
     where o.simbolo is not null
 
@@ -160,7 +170,8 @@ from (
       0::numeric,
       coalesce(p.swap, 0),
       0::numeric,
-      0::numeric
+      0::numeric,
+      p.magic
     from posiciones p
     where p.simbolo is not null
 
@@ -172,7 +183,8 @@ from (
       0, 0,
       0::numeric, 0::numeric, 0::numeric, 0::numeric,
       coalesce(s.costo, 0),
-      0::numeric
+      0::numeric,
+      null::bigint
     from spreads s
     where s.simbolo is not null
   ) x

@@ -223,6 +223,9 @@ def sincronizar_posiciones(cliente: Client, cuenta_id: str, login: str):
             "beneficio": p.get("beneficio"),
             # Lo escribe el recolector de capital inversor; los otros no lo
             # mandan todavía y queda vacío, que es lo mismo que antes.
+            # Que robot abrio la posicion. Solo lo manda el recolector de
+            # capital inversor; en los otros queda vacio.
+            "magic": p.get("magic"),
             "swap": p.get("swap"),
             "abierta_en": p.get("abierta_en"),
         }
@@ -259,6 +262,7 @@ def sincronizar_operaciones(cliente: Client, cuenta_id: str, login: str):
             "beneficio": op.get("beneficio"),
             "comision": op.get("comision"),
             "swap": op.get("swap"),
+            "magic": op.get("magic"),
             "abierta_en": op.get("abierta_en"),
             "cerrada_en": op.get("cerrada_en"),
         })

@@ -134,6 +134,9 @@ void EscribirPosiciones()
          + "\"sl\":" + DoubleToString(PositionGetDouble(POSITION_SL), 5) + ","
          + "\"tp\":" + DoubleToString(PositionGetDouble(POSITION_TP), 5) + ","
          + "\"beneficio\":" + DoubleToString(PositionGetDouble(POSITION_PROFIT), 2) + ","
+         // Numero magico del EA que abrio la posicion: dice que robot esta
+         // operando ese activo. 0 = abierta a mano.
+         + "\"magic\":" + IntegerToString(PositionGetInteger(POSITION_MAGIC)) + ","
          // El swap que ya lleva acumulado sin cerrarse: en un portafolio que
          // sostiene posiciones semanas, esto es parte de lo que cuesta.
          + "\"swap\":" + DoubleToString(PositionGetDouble(POSITION_SWAP), 2) + ","
@@ -281,6 +284,8 @@ void EscribirOperacionesNuevas()
       double beneficio = HistoryDealGetDouble(ticket, DEAL_PROFIT);
       double comision = HistoryDealGetDouble(ticket, DEAL_COMMISSION);
       double swap = HistoryDealGetDouble(ticket, DEAL_SWAP);
+      // Numero magico del EA que hizo la operacion: identifica al robot.
+      long magic = (long)HistoryDealGetInteger(ticket, DEAL_MAGIC);
       long posicionId = (long)HistoryDealGetInteger(ticket, DEAL_POSITION_ID);
       string simbolo = HistoryDealGetString(ticket, DEAL_SYMBOL);
 
@@ -332,6 +337,7 @@ void EscribirOperacionesNuevas()
          + "\"beneficio\":" + DoubleToString(beneficio, 2) + ","
          + "\"comision\":" + DoubleToString(comision, 2) + ","
          + "\"swap\":" + DoubleToString(swap, 2) + ","
+         + "\"magic\":" + IntegerToString(magic) + ","
          + "\"abierta_en\":\"" + IsoTime(abierta) + "\","
          + "\"cerrada_en\":\"" + IsoTime(cierre) + "\""
          + "}";

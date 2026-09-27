@@ -612,11 +612,21 @@ function filaDeActivo(a, mayor) {
 
   const hoy = Number(a.hoy) || 0;
 
+  // Operando = tiene posicion abierta ahora mismo en ese activo.
+  const operando = Number(a.abiertas) > 0;
+  const magics = (a.magics || "").trim();
+
+
   const fila = document.createElement("div");
   fila.className = "costo-cuenta activo-bloque";
   fila.innerHTML = `
     <div class="costo-encabezado">
-      <span class="costo-nombre">${a.simbolo}</span>
+      <span class="costo-nombre">
+        <span class="punto-operando ${operando ? "on" : "off"}" title="${operando ? `Operando: ${a.abiertas} posición${a.abiertas > 1 ? "es" : ""} abierta${a.abiertas > 1 ? "s" : ""}` : "Sin posiciones abiertas"}"></span>
+        ${a.simbolo}
+        ${magics ? `<span class="activo-magic" title="Número mágico del robot que opera este activo">#${magics}</span>` : ""}
+      </span>
+
       <span class="activo-cifras">
         <span class="activo-hoy ${hoy < 0 ? "negativo" : hoy > 0 ? "positivo" : "tenue"}" title="Lo que dejó hoy este activo (operaciones cerradas desde las 00:00 UTC)">hoy ${hoy > 0 ? "+" : ""}${formatearMoneda(hoy)}</span>
         <span class="${neto < 0 ? "negativo" : "positivo"}">${formatearMoneda(neto)}</span>
