@@ -10,9 +10,11 @@
 //|                                                                  |
 //|  1.01 - la comisión se cobra en las dos puntas y solo se estaba  |
 //|         leyendo la del cierre: quedaba a la mitad.               |
+//|  1.02 - si el archivo esta tomado por el Agente, se reintenta    |
+//|         abrirlo en vez de perder la escritura (error 5004).      |
 //+------------------------------------------------------------------+
 #property copyright "Centro de Monitoreo MT5"
-#property version   "1.01"
+#property version   "1.02"
 #property strict
 
 input int IntervaloSegundos = 5; // cada cuánto escribe y revisa órdenes de descarga
@@ -44,10 +46,29 @@ string LoginStr()
    return IntegerToString((long)AccountInfoInteger(ACCOUNT_LOGIN));
   }
 
+// Abre un archivo reintentando si esta tomado por otro proceso. Tres
+// intentos con una pausa corta alcanzan de sobra: el Agente tiene el
+// archivo abierto apenas unos milisegundos para leerlo.
+int AbrirConReintentos(string archivo, int modo)
+  {
+   for(int intento = 0; intento < 3; intento++)
+     {
+      int h = FileOpen(archivo, modo);
+      if(h != INVALID_HANDLE)
+         return h;
+      Sleep(50);
+     }
+   return INVALID_HANDLE;
+  }
+
 // Escribe contenido UTF-8, sobrescribiendo el archivo.
 void EscribirTexto(string archivo, string contenido)
   {
-   int handle = FileOpen(archivo, FILE_WRITE | FILE_BIN | FILE_COMMON);
+   // El Agente lee estos mismos archivos y Windows no deja abrir para
+   // escritura uno que otro proceso tenga tomado en ese instante (error
+   // 5004). Es un cruce de milisegundos: se reintenta antes de perder el
+   // dato, en vez de esperar los 5 segundos del ciclo siguiente.
+   int handle = AbrirConReintentos(archivo, FILE_WRITE | FILE_BIN | FILE_COMMON);
    if(handle == INVALID_HANDLE)
      {
       Print("No se pudo escribir ", archivo, " error ", GetLastError());
@@ -63,7 +84,7 @@ void EscribirTexto(string archivo, string contenido)
 // Agrega una línea UTF-8 al final del archivo (lo crea si no existe).
 void AgregarLinea(string archivo, string linea)
   {
-   int handle = FileOpen(archivo, FILE_READ | FILE_WRITE | FILE_BIN | FILE_COMMON);
+   int handle = AbrirConReintentos(archivo, FILE_READ | FILE_WRITE | FILE_BIN | FILE_COMMON);
    if(handle == INVALID_HANDLE)
      {
       Print("No se pudo abrir ", archivo, " error ", GetLastError());
