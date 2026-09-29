@@ -564,3 +564,53 @@ details summary { cursor: pointer; }
   font-variant-numeric: tabular-nums;
   margin-left: 0.3rem;
 }
+
+/* Cuenta de incubación: un bot por fila, los cuatro mejores resaltados. */
+.cuenta-bots { font-variant-numeric: tabular-nums; }
+
+.bot-fila {
+  border-left: 2px solid transparent;
+  padding: 0.3rem 0 0.3rem 0.45rem;
+  border-bottom: 1px solid var(--borde);
+}
+.bot-fila:last-of-type { border-bottom: none; }
+
+/* Los cuatro mejores por ganancia sobre drawdown. */
+.bot-fila.destacado {
+  border-left-color: var(--celeste);
+  background: rgba(79, 195, 247, 0.06);
+  border-radius: 0 6px 6px 0;
+}
+
+.bot-encabezado {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.76rem;
+}
+.bot-nombre {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bot-datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.6rem;
+  font-size: 0.66rem;
+  color: var(--texto-tenue);
+  margin-top: 0.1rem;
+}
+.bot-simbolo { color: var(--texto); }
+.bot-magic { font-family: "Courier New", monospace; }
+
+.bots-pie {
+  font-size: 0.66rem;
+  color: var(--texto-tenue);
+  border-top: 1px solid var(--borde);
+  padding-top: 0.35rem;
+  margin-top: 0.3rem;
+}

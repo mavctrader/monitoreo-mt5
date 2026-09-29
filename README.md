@@ -11,6 +11,7 @@ mql5/
   EA_Recolector_A/          Fondeo, versión cerrada el 19/09/2026: la que opera en la VPS
   EA_Recolector_B/          Fondeo, versión viva: acá van los cambios
   EA_Recolector_Inversor_A/ Cuentas de capital inversor (Darwinex Zero)
+  EA_Recolector_Incubadora_A/ Bots en incubación: uno por gráfico, medidos por separado
   Include/           Interruptor.mqh - lo que cada bot propio incluye para obedecer parar/arrancar
 agente/              Programa que corre en la VPS: junta Common, sube a Supabase, vigila límites
 supabase/            Esquema SQL y políticas RLS de las 7 tablas
@@ -31,6 +32,7 @@ compilado en cada terminal.
 | `EA_Recolector_A` | En producción | Las cuentas de fondeo que operan cross. Solo arreglos. |
 | `EA_Recolector_B` | Versión viva | Línea de fondeo: acá van los cambios nuevos. |
 | `EA_Recolector_Inversor_A` | Abierta el 19/09/2026 | Cuentas de capital inversor (Darwinex Zero). Línea propia. |
+| `EA_Recolector_Incubadora_A` | Abierta el 29/09/2026 | Terminal de bots en incubación. Línea propia. |
 
 Las cuentas de capital inversor llevan su propio recolector, no el de fondeo:
 separa comisión de swap y además reporta el swap acumulado de las posiciones

@@ -44,6 +44,9 @@ let activosCache = [];
 // Peor caÃ­da de cada cuenta entera, con la fecha en que tocÃ³ fondo.
 let drawdownCache = [];
 
+// Resultado de cada bot de la cuenta de incubaciÃ³n, por nÃºmero mÃ¡gico.
+let botsCache = [];
+
 // ---------------------------------------------------------------
 // AutenticaciÃ³n
 // ---------------------------------------------------------------
@@ -99,7 +102,8 @@ function refrescar() {
   cargarInversor().then(() => cargarBalance()).then(cargarResumen);
   // Los activos tienen que estar en memoria antes de armar las tarjetas: la
   // de una cuenta de portafolio los muestra adentro.
-  Promise.all([cargarPares(), cargarActivos(), cargarDrawdown()]).then(cargarCuentas);
+  Promise.all([cargarPares(), cargarActivos(), cargarDrawdown(), cargarBots()])
+    .then(cargarCuentas);
 }
 
 // ---------------------------------------------------------------
@@ -533,11 +537,92 @@ function renderizarCuenta(cuenta) {
   // en su lugar va el aporte de cada activo, que es lo que hay para mirar.
   if (cuenta.tipo === "capital_inversor") {
     renderizarActivosDeLaCuenta(nodo, cuenta);
+  } else if (cuenta.tipo === "incubadora") {
+    renderizarBotsDeLaCuenta(nodo, cuenta);
   } else {
     renderizarObjetivos(nodo, estado, reglas);
   }
 
   return nodo;
+}
+
+// Cuenta de incubación: varios bots a prueba en un mismo terminal. Lo que
+// se mira no es el saldo sino cada bot por separado.
+//
+// Se muestran los que van en positivo, ordenados por ganancia sobre
+// drawdown, y los cuatro mejores quedan resaltados. Los que van en negativo
+// no se listan, pero se cuentan al pie: no interesan para elegir, aunque sí
+// saber cuántos son.
+const BOTS_DESTACADOS = 4;
+
+function renderizarBotsDeLaCuenta(nodo, cuenta) {
+  const bloque = nodo.querySelector(".cuenta-objetivos");
+  bloque.innerHTML = "";
+  bloque.classList.add("cuenta-bots");
+
+  const todos = botsCache.filter((b) => b.cuenta_id === cuenta.id);
+  if (!todos.length) {
+    bloque.innerHTML = `<p class="aviso-chico">Todavía no hay operaciones de ningún bot.</p>`;
+    return;
+  }
+
+  const positivos = todos
+    .filter((b) => Number(b.ganancia) > 0)
+    .sort((a, b) => puntajeBot(b) - puntajeBot(a));
+  const negativos = todos.length - positivos.length;
+
+  const titulo = document.createElement("div");
+  titulo.className = "titulo-bloque";
+  titulo.textContent = `En positivo · ${positivos.length} de ${todos.length}`;
+  bloque.appendChild(titulo);
+
+  if (!positivos.length) {
+    bloque.innerHTML += `<p class="aviso-chico">Ninguno va en positivo todavía.</p>`;
+    return;
+  }
+
+  positivos.forEach((b, i) => bloque.appendChild(filaDeBot(b, i < BOTS_DESTACADOS)));
+
+  if (negativos) {
+    const pie = document.createElement("div");
+    pie.className = "bots-pie";
+    pie.textContent = `${negativos} bot${negativos > 1 ? "s" : ""} en negativo, sin listar`;
+    bloque.appendChild(pie);
+  }
+}
+
+// Ganancia sobre drawdown. Un bot que todavía no tuvo ninguna caída no tiene
+// cociente: va al fondo del orden, porque no es que sea perfecto, es que no
+// hay con qué medirlo todavía.
+function puntajeBot(b) {
+  const r = Number(b.recuperacion);
+  return Number.isFinite(r) ? r : -1;
+}
+
+function filaDeBot(b, destacado) {
+  const ganancia = Number(b.ganancia) || 0;
+  const recuperacion = Number(b.recuperacion);
+  const aciertos = b.operaciones ? Math.round((b.ganadoras / b.operaciones) * 100) : null;
+
+  const fila = document.createElement("div");
+  fila.className = "bot-fila" + (destacado ? " destacado" : "");
+  fila.innerHTML = `
+    <div class="bot-encabezado">
+      <span class="bot-nombre">${b.nombre || `Magic ${b.magic}`}</span>
+      <span class="positivo">${formatearMoneda(ganancia)}</span>
+    </div>
+    <div class="bot-datos">
+      <span class="bot-simbolo">${b.simbolo || "-"}</span>
+      <span class="bot-magic">#${b.magic}</span>
+      <span class="bot-dato" title="Ganancia dividida por la peor caída que tuvo">
+        ${Number.isFinite(recuperacion) ? `${recuperacion.toFixed(1)}×` : "sin caídas"}
+      </span>
+      <span class="bot-dato" title="Operaciones cerradas${b.abiertas ? ` · ${b.abiertas} abierta${b.abiertas > 1 ? "s" : ""}` : ""}">
+        ${b.operaciones} ops${aciertos != null ? ` · ${aciertos}%` : ""}
+      </span>
+    </div>
+  `;
+  return fila;
 }
 
 // Reemplaza el bloque de objetivos por el ranking de activos: cuÃ¡l le suma
@@ -914,6 +999,11 @@ async function cargarActivos() {
 async function cargarDrawdown() {
   const { data, error } = await sb.from("drawdown_cuenta").select("*");
   drawdownCache = error ? [] : data;
+}
+
+async function cargarBots() {
+  const { data, error } = await sb.from("resumen_bots").select("*");
+  botsCache = error ? [] : data;
 }
 
 // El nombre de la firma lleva a sus tÃ©rminos de contrato: lo que hay que

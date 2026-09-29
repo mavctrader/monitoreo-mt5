@@ -350,6 +350,8 @@ def sincronizar_bots(cliente: Client, cuenta_id: str, login: str):
             "simbolo": g.get("simbolo"),
             "periodo": g.get("periodo"),
             "nombre": (cache_plantillas.get(g.get("grafico_id")) or {}).get("nombre_ea"),
+            # Con esto el panel sabe que bot hizo cada operacion.
+            "magic": (cache_plantillas.get(g.get("grafico_id")) or {}).get("magic"),
         }
         for g in datos.get("graficos", [])
     ]
@@ -368,6 +370,7 @@ CARPETA_TERMINALES = Path(os.environ["APPDATA"]) / "MetaQuotes" / "Terminal"
 PATRON_TPL = re.compile(r"MonitoreoMT5_tpl_(\d+)\.tpl$", re.IGNORECASE)
 PATRON_SIMBOLO = re.compile(r"[A-Za-z0-9._,:]{1,40}$")
 PATRON_MAPEO = re.compile(r"[A-Za-z0-9._]{2,20}:[A-Za-z0-9._]{2,20}$")
+PATRON_MAGIC = re.compile(r"^\d{1,18}$")
 
 
 def grupo_desde_canal(canal):
@@ -392,14 +395,20 @@ def leer_texto_plantilla(ruta: Path):
 def parsear_plantilla(ruta: Path):
     """Del archivo de plantilla saca SOLO el nombre del EA, el archivo de
     canal (master.jsonN) y el símbolo que opera. El resto de los parámetros
-    del EA -contraseñas incluidas- no se lee ni se guarda en ningún lado."""
+    del EA -contraseñas incluidas- no se lee ni se guarda en ningún lado.
+
+    La única excepción es el número mágico, y se lee con dos candados: el
+    nombre del parámetro tiene que contener "magic" y el valor tiene que ser
+    entero. Una contraseña no cumple ninguna de las dos. Hace falta para
+    saber qué bot es cada uno en la cuenta de incubación, donde conviven
+    varios en el mismo terminal."""
     try:
         texto = leer_texto_plantilla(ruta)
     except OSError:
         return None
 
     dentro = False
-    nombre = canal = simbolo = mapeo = None
+    nombre = canal = simbolo = mapeo = magic = None
     anterior = ""
     for linea in texto.splitlines():
         linea = linea.strip()
@@ -429,6 +438,13 @@ def parsear_plantilla(ruta: Path):
             if PATRON_SIMBOLO.match(previo):
                 simbolo = previo.split(":")[-1]
 
+        # El numero magico del bot: la clave tiene que decir "magic" y el
+        # valor ser entero. Una contrasena no cumple ninguna de las dos.
+        if magic is None and "=" in linea:
+            clave = linea.split("=", 1)[0].strip().lower()
+            if "magic" in clave and PATRON_MAGIC.match(valor):
+                magic = int(valor)
+
         anterior = linea
 
     if not nombre and not canal:
@@ -437,6 +453,7 @@ def parsear_plantilla(ruta: Path):
         "nombre_ea": nombre or "",
         "canal": canal or "",
         "simbolo_operado": mapeo or simbolo or "",
+        "magic": magic,
     }
 
 
