@@ -205,6 +205,9 @@ void MedirSpreadsNuevos()
          + "\"ticket\":" + IntegerToString((long)ticket) + ","
          + "\"simbolo\":\"" + JsonEscape(simbolo) + "\","
          + "\"volumen\":" + DoubleToString(volumen, 2) + ","
+         // Que estrategia pago este spread: sin esto el costo no se puede
+         // atribuir a nadie una vez que la posicion se cierra.
+         + "\"magic\":" + IntegerToString(PositionGetInteger(POSITION_MAGIC)) + ","
          + "\"costo\":" + DoubleToString(costo, 2) + ","
          + "\"medido_en\":\"" + IsoTime(TimeGMT()) + "\""
          + "}";

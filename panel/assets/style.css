@@ -614,3 +614,28 @@ details summary { cursor: pointer; }
   padding-top: 0.35rem;
   margin-top: 0.3rem;
 }
+
+/* Estrategias que no entran entre las principales: nombre y resultado nada más. */
+.estrategia-datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.6rem;
+  font-size: 0.66rem;
+  color: var(--texto-tenue);
+  margin: 0.05rem 0 0.3rem;
+}
+
+.estrategia-compacta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  padding: 0.16rem 0;
+}
+.estrategia-compacta .compacta-nombre {
+  flex: 1 1 auto;
+  color: var(--texto-tenue);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

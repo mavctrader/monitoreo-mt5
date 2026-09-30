@@ -296,6 +296,7 @@ def sincronizar_spreads(cliente: Client, cuenta_id: str, login: str):
             "ticket": s["ticket"],
             "simbolo": s.get("simbolo"),
             "volumen": s.get("volumen"),
+            "magic": s.get("magic"),
             "costo": s.get("costo"),
             "medido_en": s.get("medido_en"),
         })

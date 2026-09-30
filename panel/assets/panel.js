@@ -38,9 +38,6 @@ let paresCache = [];
 // sirven para que no aparezcan también en la de cuentas de fondeo.
 let idsInversor = new Set();
 
-// Aporte de cada activo al portafolio, por cuenta. Lo dibuja la tarjeta.
-let activosCache = [];
-
 // Peor caída de cada cuenta entera, con la fecha en que tocó fondo.
 let drawdownCache = [];
 
@@ -102,7 +99,7 @@ function refrescar() {
   cargarInversor().then(() => cargarBalance()).then(cargarResumen);
   // Los activos tienen que estar en memoria antes de armar las tarjetas: la
   // de una cuenta de portafolio los muestra adentro.
-  Promise.all([cargarPares(), cargarActivos(), cargarDrawdown(), cargarBots()])
+  Promise.all([cargarPares(), cargarDrawdown(), cargarBots()])
     .then(cargarCuentas);
 }
 
@@ -533,12 +530,10 @@ function renderizarCuenta(cuenta) {
     indSeñal.title = "Nunca dio señal";
   }
 
-  // Una cuenta de portafolio no tiene objetivo ni colchón contra un límite:
-  // en su lugar va el aporte de cada activo, que es lo que hay para mirar.
-  if (cuenta.tipo === "capital_inversor") {
-    renderizarActivosDeLaCuenta(nodo, cuenta);
-  } else if (cuenta.tipo === "incubadora") {
-    renderizarBotsDeLaCuenta(nodo, cuenta);
+  // Ni el portafolio ni la incubadora tienen objetivo ni colchón contra un
+  // límite: en su lugar va el resultado de cada estrategia.
+  if (cuenta.tipo === "capital_inversor" || cuenta.tipo === "incubadora") {
+    renderizarEstrategias(nodo, cuenta);
   } else {
     renderizarObjetivos(nodo, estado, reglas);
   }
@@ -546,146 +541,68 @@ function renderizarCuenta(cuenta) {
   return nodo;
 }
 
-// Cuenta de incubaci�n: varios bots a prueba en un mismo terminal. Lo que
-// se mira no es el saldo sino cada bot por separado.
-//
-// Se muestran los que van en positivo, ordenados por ganancia sobre
-// drawdown, y los cuatro mejores quedan resaltados. Los que van en negativo
-// no se listan, pero se cuentan al pie: no interesan para elegir, aunque s�
-// saber cu�ntos son.
-const BOTS_DESTACADOS = 4;
 
-function renderizarBotsDeLaCuenta(nodo, cuenta) {
+// Una cuenta de portafolio o de incubación se mira por ESTRATEGIA, no por
+// activo: dos estrategias pueden operar el mismo símbolo y al agruparlas por
+// activo se pierden las dos. El número mágico es lo único que las separa.
+//
+// Las cuatro mejores van con todo el detalle; el resto, en una línea sola.
+const ESTRATEGIAS_PRINCIPALES = 4;
+
+function renderizarEstrategias(nodo, cuenta) {
   const bloque = nodo.querySelector(".cuenta-objetivos");
   bloque.innerHTML = "";
-  bloque.classList.add("cuenta-bots");
+  bloque.classList.add("cuenta-estrategias");
 
-  const todos = botsCache.filter((b) => b.cuenta_id === cuenta.id);
-  if (!todos.length) {
-    bloque.innerHTML = `<p class="aviso-chico">Todav�a no hay operaciones de ning�n bot.</p>`;
+  const todas = botsCache
+    .filter((b) => b.cuenta_id === cuenta.id)
+    .sort((a, b) => puntajeEstrategia(b) - puntajeEstrategia(a));
+
+  if (!todas.length) {
+    bloque.innerHTML = `<p class="aviso-chico">Todavía no hay operaciones de ninguna estrategia.</p>`;
     return;
   }
 
-  const positivos = todos
-    .filter((b) => Number(b.ganancia) > 0)
-    .sort((a, b) => puntajeBot(b) - puntajeBot(a));
-  const negativos = todos.length - positivos.length;
+  const principales = todas.slice(0, ESTRATEGIAS_PRINCIPALES);
+  const resto = todas.slice(ESTRATEGIAS_PRINCIPALES);
 
   const titulo = document.createElement("div");
   titulo.className = "titulo-bloque";
-  titulo.textContent = `En positivo � ${positivos.length} de ${todos.length}`;
+  titulo.textContent = `Estrategias · ${todas.length}`;
   bloque.appendChild(titulo);
 
-  if (!positivos.length) {
-    bloque.innerHTML += `<p class="aviso-chico">Ninguno va en positivo todav�a.</p>`;
-    return;
-  }
+  const mayor = Math.max(...principales.map((b) => Math.abs(Number(b.ganancia) || 0)), 1);
+  for (const b of principales) bloque.appendChild(filaEstrategia(b, mayor));
 
-  positivos.forEach((b, i) => bloque.appendChild(filaDeBot(b, i < BOTS_DESTACADOS)));
+  for (const b of resto) bloque.appendChild(filaEstrategiaCompacta(b));
 
-  if (negativos) {
-    const pie = document.createElement("div");
-    pie.className = "bots-pie";
-    pie.textContent = `${negativos} bot${negativos > 1 ? "s" : ""} en negativo, sin listar`;
-    bloque.appendChild(pie);
-  }
+  const total = todas.reduce((t, b) => t + (Number(b.ganancia) || 0), 0);
+  const pie = document.createElement("div");
+  pie.className = "activo-total";
+  pie.innerHTML = `
+    <span class="etiqueta">Total</span>
+    <span class="${total < 0 ? "negativo" : "positivo"}">${formatearMoneda(total)}</span>
+  `;
+  bloque.appendChild(pie);
 }
 
-// Ganancia sobre drawdown. Un bot que todav�a no tuvo ninguna ca�da no tiene
-// cociente: va al fondo del orden, porque no es que sea perfecto, es que no
-// hay con qu� medirlo todav�a.
-function puntajeBot(b) {
+// Ganancia sobre drawdown. Una estrategia que todavía no tuvo ninguna caída
+// no tiene cociente: va al fondo, porque no es que sea perfecta, es que no
+// hay con qué medirla.
+function puntajeEstrategia(b) {
   const r = Number(b.recuperacion);
   return Number.isFinite(r) ? r : -1;
 }
 
-function filaDeBot(b, destacado) {
+function filaEstrategia(b, mayor) {
   const ganancia = Number(b.ganancia) || 0;
+  const hoy = Number(b.hoy) || 0;
   const recuperacion = Number(b.recuperacion);
-  const aciertos = b.operaciones ? Math.round((b.ganadoras / b.operaciones) * 100) : null;
 
-  const fila = document.createElement("div");
-  fila.className = "bot-fila" + (destacado ? " destacado" : "");
-  fila.innerHTML = `
-    <div class="bot-encabezado">
-      <span class="bot-nombre">${b.nombre || `Magic ${b.magic}`}</span>
-      <span class="positivo">${formatearMoneda(ganancia)}</span>
-    </div>
-    <div class="bot-datos">
-      <span class="bot-simbolo">${b.simbolo || "-"}</span>
-      <span class="bot-magic">#${b.magic}</span>
-      <span class="bot-dato" title="Ganancia dividida por la peor ca�da que tuvo">
-        ${Number.isFinite(recuperacion) ? `${recuperacion.toFixed(1)}�` : "sin ca�das"}
-      </span>
-      <span class="bot-dato" title="Operaciones cerradas${b.abiertas ? ` � ${b.abiertas} abierta${b.abiertas > 1 ? "s" : ""}` : ""}">
-        ${b.operaciones} ops${aciertos != null ? ` � ${aciertos}%` : ""}
-      </span>
-    </div>
-  `;
-  return fila;
-}
-
-// Reemplaza el bloque de objetivos por el ranking de activos: cuál le suma
-// al portafolio y cuál le resta, con los costos de cada uno debajo.
-function renderizarActivosDeLaCuenta(nodo, cuenta) {
-  const bloque = nodo.querySelector(".cuenta-objetivos");
-  bloque.innerHTML = "";
-  bloque.classList.add("cuenta-activos");
-
-  const activos = activosCache
-    .filter((a) => a.cuenta_id === cuenta.id)
-    .sort((a, b) => Number(b.neto) - Number(a.neto));
-
-  if (!activos.length) {
-    bloque.innerHTML = `<p class="aviso-chico">Todavía no hay operaciones registradas.</p>`;
-    return;
-  }
-
-  const mayor = Math.max(...activos.map((a) => Math.abs(Number(a.neto) || 0)), 1);
-
-  const titulo = document.createElement("div");
-  titulo.className = "titulo-bloque";
-  titulo.textContent = "Aporte por activo";
-  bloque.appendChild(titulo);
-
-  for (const a of activos) bloque.appendChild(filaDeActivo(a, mayor));
-
-  const suma = (campo) => activos.reduce((t, a) => t + (Number(a[campo]) || 0), 0);
-  const hoyTotal = suma("hoy");
-  const total = document.createElement("div");
-  total.className = "activo-total";
-  total.innerHTML = `
-    <span class="etiqueta">Total del portafolio</span>
-    <span class="activo-cifras">
-      <span class="activo-hoy ${hoyTotal < 0 ? "negativo" : hoyTotal > 0 ? "positivo" : "tenue"}">hoy ${hoyTotal > 0 ? "+" : ""}${formatearMoneda(hoyTotal)}</span>
-      <span class="${suma("neto") < 0 ? "negativo" : "positivo"}">${formatearMoneda(suma("neto"))}</span>
-    </span>
-  `;
-  bloque.appendChild(total);
-
-  // La peor caída del portafolio entero. No es la suma de las caídas de cada
-  // activo: esas pasan en momentos distintos y se tapan entre ellas.
-  const dd = drawdownCache.find((d) => d.cuenta_id === cuenta.id);
-  if (dd && Number(dd.drawdown_max) !== 0) {
-    const fila = document.createElement("div");
-    fila.className = "activo-drawdown drawdown-portafolio";
-    fila.innerHTML = `
-      <span class="etiqueta" title="La caída más grande que tuvo el portafolio desde su mejor momento">Drawdown máx. del portafolio</span>
-      <span class="negativo">${formatearMoneda(dd.drawdown_max)}</span>
-      <span class="drawdown-fecha">${dd.drawdown_en ? new Date(dd.drawdown_en).toLocaleDateString("es", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "-"}</span>
-    `;
-    bloque.appendChild(fila);
-  }
-}
-
-function filaDeActivo(a, mayor) {
-  const neto = Number(a.neto) || 0;
-
-  // Mismos tres costos y los mismos colores que en el costo del par.
   const partes = [
-    { clase: "seg-spread", etiqueta: "spread", valor: Math.abs(Number(a.spread) || 0) },
-    { clase: "seg-swap", etiqueta: "swap", valor: Math.abs(Number(a.swap) || 0) },
-    { clase: "seg-comision", etiqueta: "comisión", valor: Math.abs(Number(a.comision) || 0) },
+    { clase: "seg-spread", etiqueta: "spread", valor: Math.abs(Number(b.spread) || 0) },
+    { clase: "seg-swap", etiqueta: "swap", valor: Math.abs(Number(b.swap) || 0) },
+    { clase: "seg-comision", etiqueta: "comisión", valor: Math.abs(Number(b.comision) || 0) },
   ];
   const costo = partes.reduce((t, p) => t + p.valor, 0);
   const segmentos = costo > 0
@@ -695,29 +612,28 @@ function filaDeActivo(a, mayor) {
         .join("")
     : "";
 
-  const hoy = Number(a.hoy) || 0;
-
-  // Operando = tiene posicion abierta ahora mismo en ese activo.
-  const operando = Number(a.abiertas) > 0;
-  const magics = (a.magics || "").trim();
-
+  const operando = Number(b.abiertas) > 0;
 
   const fila = document.createElement("div");
-  fila.className = "costo-cuenta activo-bloque";
+  fila.className = "costo-cuenta activo-bloque estrategia-principal";
   fila.innerHTML = `
     <div class="costo-encabezado">
       <span class="costo-nombre">
-        <span class="punto-operando ${operando ? "on" : "off"}" title="${operando ? `Operando: ${a.abiertas} posición${a.abiertas > 1 ? "es" : ""} abierta${a.abiertas > 1 ? "s" : ""}` : "Sin posiciones abiertas"}"></span>
-        ${a.simbolo}
-        ${magics ? `<span class="activo-magic" title="Número mágico del robot que opera este activo">#${magics}</span>` : ""}
+        <span class="punto-operando ${operando ? "on" : "off"}" title="${operando ? `${b.abiertas} posición${b.abiertas > 1 ? "es" : ""} abierta${b.abiertas > 1 ? "s" : ""}` : "Sin posiciones abiertas"}"></span>
+        ${b.nombre || `Magic ${b.magic}`}
       </span>
-
       <span class="activo-cifras">
-        <span class="activo-hoy ${hoy < 0 ? "negativo" : hoy > 0 ? "positivo" : "tenue"}" title="Lo que dejó hoy este activo (operaciones cerradas desde las 00:00 UTC)">hoy ${hoy > 0 ? "+" : ""}${formatearMoneda(hoy)}</span>
-        <span class="${neto < 0 ? "negativo" : "positivo"}">${formatearMoneda(neto)}</span>
+        <span class="activo-hoy ${hoy < 0 ? "negativo" : hoy > 0 ? "positivo" : "tenue"}" title="Lo que dejó hoy (operaciones cerradas desde las 00:00 UTC)">hoy ${hoy > 0 ? "+" : ""}${formatearMoneda(hoy)}</span>
+        <span class="${ganancia < 0 ? "negativo" : "positivo"}">${formatearMoneda(ganancia)}</span>
       </span>
     </div>
-    <div class="barra-aporte"><span class="barra-relleno ${neto < 0 ? "resta" : "suma"}" style="width:${(Math.abs(neto) / mayor) * 100}%"></span></div>
+    <div class="estrategia-datos">
+      <span class="bot-simbolo">${b.simbolo || "-"}</span>
+      <span class="bot-magic">#${b.magic}</span>
+      <span title="Ganancia dividida por la peor caída que tuvo">${Number.isFinite(recuperacion) ? `${recuperacion.toFixed(1)}×` : "sin caídas"}</span>
+      <span title="Operaciones cerradas${b.operaciones ? ` · ${Math.round((b.ganadoras / b.operaciones) * 100)}% ganadoras` : ""}">${b.operaciones} ops</span>
+    </div>
+    <div class="barra-aporte"><span class="barra-relleno ${ganancia < 0 ? "resta" : "suma"}" style="width:${(Math.abs(ganancia) / mayor) * 100}%"></span></div>
     <div class="costo-encabezado activo-costo-total">
       <span class="etiqueta">Costo</span>
       <span class="costo-total">${formatearMoneda(costo)}</span>
@@ -726,7 +642,20 @@ function filaDeActivo(a, mayor) {
     <div class="costo-leyenda">
       ${partes.map((p) => `<span class="punto ${p.clase}"></span>${p.etiqueta} ${formatearMoneda(p.valor)}`).join(" ")}
     </div>
-    ${textoDrawdown(a)}
+    ${textoDrawdown(b)}
+  `;
+  return fila;
+}
+
+// Las que no entran en las cuatro principales: nombre y resultado, nada más.
+function filaEstrategiaCompacta(b) {
+  const ganancia = Number(b.ganancia) || 0;
+  const fila = document.createElement("div");
+  fila.className = "estrategia-compacta";
+  fila.innerHTML = `
+    <span class="punto-operando ${Number(b.abiertas) > 0 ? "on" : "off"}"></span>
+    <span class="compacta-nombre">${b.nombre || `Magic ${b.magic}`}</span>
+    <span class="${ganancia < 0 ? "negativo" : "positivo"}">${formatearMoneda(ganancia)}</span>
   `;
   return fila;
 }
@@ -987,13 +916,6 @@ async function cargarInversor() {
     `Capital inversor · ${data.length}` +
     ` · resultado <span class="${total < 0 ? "negativo" : "positivo"}">${formatearDolares(total)}</span>`;
 
-}
-
-// El aporte de cada activo se pide una vez por ciclo y queda en memoria: lo
-// usa la tarjeta de cada cuenta de portafolio, que es donde va.
-async function cargarActivos() {
-  const { data, error } = await sb.from("resumen_activos").select("*");
-  activosCache = error ? [] : data;
 }
 
 async function cargarDrawdown() {
