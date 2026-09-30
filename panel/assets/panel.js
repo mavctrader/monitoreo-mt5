@@ -556,7 +556,7 @@ function renderizarEstrategias(nodo, cuenta) {
 
   const todas = botsCache
     .filter((b) => b.cuenta_id === cuenta.id)
-    .sort((a, b) => puntajeEstrategia(b) - puntajeEstrategia(a));
+    .sort(ordenEstrategias);
 
   if (!todas.length) {
     bloque.innerHTML = `<p class="aviso-chico">Todavía no hay operaciones de ninguna estrategia.</p>`;
@@ -586,12 +586,24 @@ function renderizarEstrategias(nodo, cuenta) {
   bloque.appendChild(pie);
 }
 
-// Ganancia sobre drawdown. Una estrategia que todavía no tuvo ninguna caída
-// no tiene cociente: va al fondo, porque no es que sea perfecta, es que no
-// hay con qué medirla.
-function puntajeEstrategia(b) {
-  const r = Number(b.recuperacion);
-  return Number.isFinite(r) ? r : -1;
+// Primero las que ganan, ordenadas por ganancia sobre drawdown. Después las
+// que pierden, de menor a mayor pérdida.
+//
+// El cociente solo se usa entre las ganadoras: en una que pierde da siempre
+// alrededor de -1 y no dice nada. Y una ganadora que todavía no tuvo ninguna
+// caída va última entre las ganadoras, no primera: no es que sea perfecta,
+// es que todavía no hay con qué medirla.
+function ordenEstrategias(a, b) {
+  const ga = Number(a.ganancia) || 0;
+  const gb = Number(b.ganancia) || 0;
+  if ((ga > 0) !== (gb > 0)) return gb > 0 ? 1 : -1;
+  if (ga <= 0) return gb - ga;
+
+  const ra = Number(a.recuperacion);
+  const rb = Number(b.recuperacion);
+  if (!Number.isFinite(ra)) return Number.isFinite(rb) ? 1 : 0;
+  if (!Number.isFinite(rb)) return -1;
+  return rb - ra;
 }
 
 function filaEstrategia(b, mayor) {
@@ -630,7 +642,9 @@ function filaEstrategia(b, mayor) {
     <div class="estrategia-datos">
       <span class="bot-simbolo">${b.simbolo || "-"}</span>
       <span class="bot-magic">#${b.magic}</span>
-      <span title="Ganancia dividida por la peor caída que tuvo">${Number.isFinite(recuperacion) ? `${recuperacion.toFixed(1)}×` : "sin caídas"}</span>
+      ${ganancia > 0 && Number.isFinite(recuperacion)
+        ? `<span title="Ganancia dividida por la peor caída que tuvo">${recuperacion.toFixed(1)}×</span>`
+        : ""}
       <span title="Operaciones cerradas${b.operaciones ? ` · ${Math.round((b.ganadoras / b.operaciones) * 100)}% ganadoras` : ""}">${b.operaciones} ops</span>
     </div>
     <div class="barra-aporte"><span class="barra-relleno ${ganancia < 0 ? "resta" : "suma"}" style="width:${(Math.abs(ganancia) / mayor) * 100}%"></span></div>
