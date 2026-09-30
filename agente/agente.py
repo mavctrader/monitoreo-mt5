@@ -566,8 +566,13 @@ autoconfiguradas: set = set()
 
 
 def autoconfigurar(cliente: Client, cuenta_id: str, login: str):
-    """Le pone la prop firm a una cuenta nueva, deduciéndola del nombre del
-    broker que reporta MT5.
+    """Le pone a una cuenta nueva la prop firm y el tipo, deduciéndolos del
+    nombre del broker que reporta MT5.
+
+    El tipo importa tanto como el nombre: decide qué se le dibuja en el panel
+    y si el agente le vigila los límites de prop firm. Sin esto, una cuenta
+    de Darwinex Zero recién dada de alta entra como 'fondeo' y le aparecen
+    Objetivo y Colchón, que ahí no significan nada.
 
     Los límites en dinero NO se calculan acá: el agente no escribe reglas, a
     propósito, para que un problema en la VPS no toque los límites. De eso se
@@ -575,22 +580,38 @@ def autoconfigurar(cliente: Client, cuenta_id: str, login: str):
     if cuenta_id in autoconfiguradas:
         return
 
-    cuenta = cliente.table("cuentas").select("prop_firm,broker").eq("id", cuenta_id).single().execute().data
-    if cuenta.get("prop_firm") or not cuenta.get("broker"):
+    cuenta = (
+        cliente.table("cuentas").select("prop_firm,tipo,broker")
+        .eq("id", cuenta_id).single().execute().data
+    )
+    if not cuenta.get("broker"):
         autoconfiguradas.add(cuenta_id)
         return
 
     equivalencia = (
         cliente.table("brokers_prop_firm")
-        .select("prop_firm").eq("broker", cuenta["broker"]).limit(1).execute()
+        .select("prop_firm,tipo").eq("broker", cuenta["broker"]).limit(1).execute()
     )
     if not equivalencia.data:
         return  # broker desconocido: se reintenta cuando se cargue la equivalencia
 
-    prop_firm = equivalencia.data[0]["prop_firm"]
-    cliente.table("cuentas").update({"prop_firm": prop_firm}).eq("id", cuenta_id).execute()
+    fila = equivalencia.data[0]
+    cambios = {}
+
+    if not cuenta.get("prop_firm") and fila.get("prop_firm"):
+        cambios["prop_firm"] = fila["prop_firm"]
+
+    # El tipo solo se corrige mientras siga en el valor por defecto: si lo
+    # cambiaste a mano, el agente no te lo pisa.
+    if fila.get("tipo") and (cuenta.get("tipo") or TIPO_FONDEO) == TIPO_FONDEO \
+            and fila["tipo"] != TIPO_FONDEO:
+        cambios["tipo"] = fila["tipo"]
+
+    if cambios:
+        cliente.table("cuentas").update(cambios).eq("id", cuenta_id).execute()
+        print(f"[auto] cuenta {login}: " + ", ".join(f"{k} {v}" for k, v in cambios.items()))
+
     autoconfiguradas.add(cuenta_id)
-    print(f"[auto] cuenta {login}: prop firm {prop_firm}")
 
 
 def leer_reglas(cliente: Client, cache_cuentas: dict) -> dict:

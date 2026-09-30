@@ -50,3 +50,14 @@ insert into brokers_prop_firm (broker, prop_firm) values
   ('Five Percent Online Ltd', 'The5ers'),
   ('Tradeslide Trading Tech Limited', 'Darwinex Zero')
 on conflict (broker) do update set prop_firm = excluded.prop_firm;
+
+-- El tipo de cuenta también se deduce del broker. Sin esto, una cuenta nueva
+-- de Darwinex Zero entra como 'fondeo' (el valor por defecto) y el panel le
+-- dibuja Objetivo y Colchón, que ahí no significan nada. El agente solo lo
+-- corrige mientras siga en el valor por defecto: si lo cambiaste a mano, no
+-- te lo pisa.
+alter table brokers_prop_firm add column if not exists tipo text;
+
+update brokers_prop_firm
+   set tipo = 'capital_inversor'
+ where broker ilike '%tradeslide%';
