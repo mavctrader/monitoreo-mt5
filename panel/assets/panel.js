@@ -553,6 +553,8 @@ function renderizarCuenta(cuenta) {
 //
 // Las cuatro mejores van con todo el detalle; el resto, en una línea sola.
 const ESTRATEGIAS_PRINCIPALES = 4;
+// Cuántas más se listan en el desplegable, debajo de las principales.
+const ESTRATEGIAS_EN_LISTA = 10;
 
 function renderizarEstrategias(nodo, cuenta) {
   const bloque = nodo.querySelector(".cuenta-objetivos");
@@ -584,7 +586,10 @@ function renderizarEstrategias(nodo, cuenta) {
   }
 
   const enPrincipal = new Set(principales.map((b) => b.magic));
-  const resto = todas.filter((b) => !enPrincipal.has(b.magic) && Number(b.ganancia) > 0);
+  // Solo las diez mejores de las que quedan: más abajo de ahí ya no aportan
+  // nada para decidir.
+  const enPositivo = todas.filter((b) => !enPrincipal.has(b.magic) && Number(b.ganancia) > 0);
+  const resto = enPositivo.slice(0, ESTRATEGIAS_EN_LISTA);
   const negativas = todas.filter((b) => Number(b.ganancia) <= 0).length;
 
   const mayor = Math.max(...principales.map((b) => Math.abs(Number(b.ganancia) || 0)), 1);
@@ -594,8 +599,8 @@ function renderizarEstrategias(nodo, cuenta) {
     const desplegable = document.createElement("details");
     desplegable.className = "estrategias-resto";
     const titulo = document.createElement("summary");
-    titulo.textContent = `Otras en positivo · ${resto.length}`
-      + (negativas ? ` · ${negativas} en negativo, sin listar` : "");
+    titulo.textContent = `Otras en positivo · `
+      + (enPositivo.length > resto.length ? ` de ` : "");
     desplegable.appendChild(titulo);
     for (const b of resto) desplegable.appendChild(filaEstrategiaCompacta(b));
     bloque.appendChild(desplegable);
