@@ -639,3 +639,13 @@ details summary { cursor: pointer; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Las que no entran entre las principales, plegadas. */
+.estrategias-resto { margin-top: 0.4rem; }
+.estrategias-resto summary {
+  font-size: 0.66rem;
+  color: var(--texto-tenue);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0;
+}

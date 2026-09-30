@@ -568,13 +568,38 @@ function renderizarEstrategias(nodo, cuenta) {
     return;
   }
 
-  const principales = todas.slice(0, ESTRATEGIAS_PRINCIPALES);
-  const resto = todas.slice(ESTRATEGIAS_PRINCIPALES);
+  // Las cuatro principales van con activos DISTINTOS: cuatro versiones de la
+  // misma estrategia sobre el mismo símbolo no dicen nada nuevo, y taparían
+  // a la mejor de otro activo. Si una de abajo supera a una principal, sube
+  // sola en el próximo refresco y la superada baja: el orden manda.
+  const principales = [];
+  const usados = new Set();
+  for (const b of todas) {
+    if (principales.length >= ESTRATEGIAS_PRINCIPALES) break;
+    if (Number(b.ganancia) <= 0) break; // en principal solo van las que ganan
+    const simbolo = b.simbolo || `magic:${b.magic}`;
+    if (usados.has(simbolo)) continue;
+    usados.add(simbolo);
+    principales.push(b);
+  }
+
+  const enPrincipal = new Set(principales.map((b) => b.magic));
+  const resto = todas.filter((b) => !enPrincipal.has(b.magic) && Number(b.ganancia) > 0);
+  const negativas = todas.filter((b) => Number(b.ganancia) <= 0).length;
 
   const mayor = Math.max(...principales.map((b) => Math.abs(Number(b.ganancia) || 0)), 1);
   for (const b of principales) bloque.appendChild(filaEstrategia(b, mayor));
 
-  for (const b of resto) bloque.appendChild(filaEstrategiaCompacta(b));
+  if (resto.length) {
+    const desplegable = document.createElement("details");
+    desplegable.className = "estrategias-resto";
+    const titulo = document.createElement("summary");
+    titulo.textContent = `Otras en positivo · ${resto.length}`
+      + (negativas ? ` · ${negativas} en negativo, sin listar` : "");
+    desplegable.appendChild(titulo);
+    for (const b of resto) desplegable.appendChild(filaEstrategiaCompacta(b));
+    bloque.appendChild(desplegable);
+  }
 
   const total = todas.reduce((t, b) => t + (Number(b.ganancia) || 0), 0);
   const pie = document.createElement("div");
