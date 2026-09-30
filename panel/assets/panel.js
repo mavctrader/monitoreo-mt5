@@ -695,8 +695,15 @@ function filaEstrategiaCompacta(b) {
   return fila;
 }
 
-// La caída más grande que tuvo este activo desde su mejor momento, y cuándo
-// tocó ese fondo. Se calcula sobre las operaciones ya cerradas.
+// Los que ya salieron del portafolio van siempre al final, sin importar su
+// resultado: son registro histórico, no algo que estés mirando hoy.
+function ordenActivos(a, b) {
+  const ea = a.en_cartera === false ? 1 : 0;
+  const eb = b.en_cartera === false ? 1 : 0;
+  if (ea !== eb) return ea - eb;
+  return Number(b.neto) - Number(a.neto);
+}
+
 // Reemplaza el bloque de objetivos por el ranking de activos: cuál le suma
 // al portafolio y cuál le resta, con los costos de cada uno debajo.
 function renderizarActivosDeLaCuenta(nodo, cuenta) {
@@ -706,7 +713,7 @@ function renderizarActivosDeLaCuenta(nodo, cuenta) {
 
   const activos = activosCache
     .filter((a) => a.cuenta_id === cuenta.id)
-    .sort((a, b) => Number(b.neto) - Number(a.neto));
+    .sort(ordenActivos);
 
   if (!activos.length) {
     bloque.innerHTML = `<p class="aviso-chico">Todavía no hay operaciones registradas.</p>`;
@@ -834,6 +841,8 @@ function filaDeActivo(a, mayor) {
   return fila;
 }
 
+// La caída más grande que tuvo este activo desde su mejor momento, y cuándo
+// tocó ese fondo. Se calcula sobre las operaciones ya cerradas.
 function textoDrawdown(a) {
   if (a.drawdown_max == null || Number(a.drawdown_max) === 0) return "";
   const cuando = a.drawdown_en
