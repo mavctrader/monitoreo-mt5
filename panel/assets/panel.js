@@ -556,6 +556,10 @@ const ESTRATEGIAS_PRINCIPALES = 4;
 // Cuántas más se listan en el desplegable, debajo de las principales.
 const ESTRATEGIAS_EN_LISTA = 20;
 
+// Cuentas cuyo desplegable de estrategias dejaste abierto. Se recuerda acá
+// porque la tarjeta se vuelve a dibujar en cada refresco.
+const restoDesplegado = new Set();
+
 function renderizarEstrategias(nodo, cuenta) {
   const bloque = nodo.querySelector(".cuenta-objetivos");
   bloque.innerHTML = "";
@@ -598,6 +602,13 @@ function renderizarEstrategias(nodo, cuenta) {
   if (resto.length) {
     const desplegable = document.createElement("details");
     desplegable.className = "estrategias-resto";
+    // La tarjeta se rearma entera cada 10 segundos. Sin esto, el desplegable
+    // se cerraba solo apenas lo abrías.
+    desplegable.open = restoDesplegado.has(cuenta.id);
+    desplegable.addEventListener("toggle", () => {
+      if (desplegable.open) restoDesplegado.add(cuenta.id);
+      else restoDesplegado.delete(cuenta.id);
+    });
     const titulo = document.createElement("summary");
     titulo.textContent = `Otras en positivo · ${resto.length}`
       + (enPositivo.length > resto.length ? ` de ${enPositivo.length}` : "");
