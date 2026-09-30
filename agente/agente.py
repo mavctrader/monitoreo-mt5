@@ -340,6 +340,7 @@ def sincronizar_movimientos(cliente: Client, cuenta_id: str, login: str):
     archivo.unlink()
 
 
+
 def sincronizar_bots(cliente: Client, cuenta_id: str, login: str):
     datos = leer_json(COMUN / f"graficos_{login}.json")
     if datos is None:
@@ -358,6 +359,15 @@ def sincronizar_bots(cliente: Client, cuenta_id: str, login: str):
     ]
     if filas:
         cliente.table("bots").upsert(filas, on_conflict="cuenta_id,grafico_id").execute()
+
+    # Los gráficos que se cerraron se borran. Si no, la tabla solo crece y
+    # quedan fantasmas: el panel seguiría creyendo que un activo sigue en la
+    # cartera mucho después de que le sacaste el bot.
+    vivos = [f["grafico_id"] for f in filas]
+    borrado = cliente.table("bots").delete().eq("cuenta_id", cuenta_id)
+    if vivos:
+        borrado = borrado.not_.in_("grafico_id", vivos)
+    borrado.execute()
 
 
 # cuenta_id -> (rol, grupo, simbolo) ya escrito, para no repetir el update.

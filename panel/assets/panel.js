@@ -707,7 +707,9 @@ function renderizarActivosDeLaCuenta(nodo, cuenta) {
   titulo.textContent = "Aporte por activo";
   bloque.appendChild(titulo);
 
-  for (const a of activos) bloque.appendChild(filaDeActivo(a, mayor));
+  for (const a of activos) {
+    bloque.appendChild(a.en_cartera === false ? filaDeActivoRetirado(a) : filaDeActivo(a, mayor));
+  }
 
   const suma = (campo) => activos.reduce((t, a) => t + (Number(a[campo]) || 0), 0);
   const hoyTotal = suma("hoy");
@@ -735,6 +737,35 @@ function renderizarActivosDeLaCuenta(nodo, cuenta) {
     `;
     bloque.appendChild(fila);
   }
+}
+
+// Un activo al que ya le sacaste el bot: ni gráfico abierto ni posición
+// viva. No lleva barras ni desglose de costos, porque no hay nada que
+// vigilar — solo queda el registro de lo que dejó y cuándo se retiró.
+function filaDeActivoRetirado(a) {
+  const neto = Number(a.neto) || 0;
+  const cuando = a.ultima
+    ? new Date(a.ultima).toLocaleDateString("es", { day: "2-digit", month: "2-digit", year: "2-digit" })
+    : "-";
+
+  const fila = document.createElement("div");
+  fila.className = "activo-bloque activo-retirado";
+  fila.innerHTML = `
+    <div class="costo-encabezado">
+      <span class="costo-nombre">
+        ${a.simbolo}
+        ${a.magics ? `<span class="activo-magic">#${a.magics}</span>` : ""}
+        <span class="marca-retirado" title="Ya no está en el portafolio">retirado</span>
+      </span>
+      <span class="${neto < 0 ? "negativo" : "positivo"}">${formatearMoneda(neto)}</span>
+    </div>
+    <div class="activo-drawdown">
+      <span class="etiqueta">Drawdown máx.</span>
+      <span>${a.drawdown_max != null ? formatearMoneda(a.drawdown_max) : "-"}</span>
+      <span class="drawdown-fecha">${cuando}</span>
+    </div>
+  `;
+  return fila;
 }
 
 function filaDeActivo(a, mayor) {

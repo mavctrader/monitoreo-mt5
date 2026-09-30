@@ -108,6 +108,13 @@ select
   t.neto,
   t.hoy,
   t.magics,
+  t.ultima,
+  -- Un activo sigue en la cartera si tiene un grafico abierto con ese
+  -- simbolo o una posicion viva. Si no, le sacaste el bot: se muestra
+  -- apagado, con lo que dejo y la fecha en que se retiro.
+  (t.abiertas > 0 or exists (
+     select 1 from bots b
+      where b.cuenta_id = t.cuenta_id and b.simbolo = t.simbolo)) as en_cartera,
   dd.drawdown_max,
   dd.drawdown_en
 from (
@@ -125,6 +132,7 @@ from (
     -- operaciones que se cerraron hoy: no hay prop firm que imponga una
     -- hora de reset en una cuenta de portafolio.
     sum(x.hoy)           as hoy,
+    max(x.ultima)        as ultima,
     -- Los numeros magicos que operaron ese simbolo: dicen que robot es.
     -- Se descarta el 0, que es una operacion abierta a mano.
     string_agg(distinct x.magic::text, ', ')
@@ -154,6 +162,7 @@ from (
         then coalesce(o.beneficio, 0) + coalesce(o.comision, 0) + coalesce(o.swap, 0)
         else 0
       end as hoy,
+      o.cerrada_en as ultima,
       o.magic
     from operaciones o
     where o.simbolo is not null
@@ -171,6 +180,7 @@ from (
       coalesce(p.swap, 0),
       0::numeric,
       0::numeric,
+      null::timestamptz,
       p.magic
     from posiciones p
     where p.simbolo is not null
@@ -184,6 +194,7 @@ from (
       0::numeric, 0::numeric, 0::numeric, 0::numeric,
       coalesce(s.costo, 0),
       0::numeric,
+      null::timestamptz,
       null::bigint
     from spreads s
     where s.simbolo is not null
