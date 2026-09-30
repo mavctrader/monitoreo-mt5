@@ -571,11 +571,6 @@ function renderizarEstrategias(nodo, cuenta) {
   const principales = todas.slice(0, ESTRATEGIAS_PRINCIPALES);
   const resto = todas.slice(ESTRATEGIAS_PRINCIPALES);
 
-  const titulo = document.createElement("div");
-  titulo.className = "titulo-bloque";
-  titulo.textContent = `Estrategias · ${todas.length}`;
-  bloque.appendChild(titulo);
-
   const mayor = Math.max(...principales.map((b) => Math.abs(Number(b.ganancia) || 0)), 1);
   for (const b of principales) bloque.appendChild(filaEstrategia(b, mayor));
 
@@ -616,18 +611,6 @@ function filaEstrategia(b, mayor) {
   const hoy = Number(b.hoy) || 0;
   const recuperacion = Number(b.recuperacion);
 
-  const partes = [
-    { clase: "seg-spread", etiqueta: "spread", valor: Math.abs(Number(b.spread) || 0) },
-    { clase: "seg-swap", etiqueta: "swap", valor: Math.abs(Number(b.swap) || 0) },
-    { clase: "seg-comision", etiqueta: "comisión", valor: Math.abs(Number(b.comision) || 0) },
-  ];
-  const costo = partes.reduce((t, p) => t + p.valor, 0);
-  const segmentos = costo > 0
-    ? partes
-        .filter((p) => p.valor > 0)
-        .map((p) => `<span class="${p.clase}" style="width:${(p.valor / costo) * 100}%" title="${p.etiqueta} ${formatearMoneda(p.valor)}"></span>`)
-        .join("")
-    : "";
 
   const operando = Number(b.abiertas) > 0;
 
@@ -653,14 +636,6 @@ function filaEstrategia(b, mayor) {
       <span title="Operaciones cerradas${b.operaciones ? ` · ${Math.round((b.ganadoras / b.operaciones) * 100)}% ganadoras` : ""}">${b.operaciones} ops</span>
     </div>
     <div class="barra-aporte"><span class="barra-relleno ${ganancia < 0 ? "resta" : "suma"}" style="width:${(Math.abs(ganancia) / mayor) * 100}%"></span></div>
-    <div class="costo-encabezado activo-costo-total">
-      <span class="etiqueta">Costo</span>
-      <span class="costo-total">${formatearMoneda(costo)}</span>
-    </div>
-    <div class="costo-barra">${segmentos}</div>
-    <div class="costo-leyenda">
-      ${partes.map((p) => `<span class="punto ${p.clase}"></span>${p.etiqueta} ${formatearMoneda(p.valor)}`).join(" ")}
-    </div>
     ${textoDrawdown(b)}
   `;
   return fila;
