@@ -671,15 +671,21 @@ function filaEstrategia(b, mayor) {
   return fila;
 }
 
-// Las que no entran en las cuatro principales: nombre y resultado, nada más.
+// Las que no entran en las cuatro principales: nombre, activo, ganancia
+// sobre drawdown y resultado.
 function filaEstrategiaCompacta(b) {
   const ganancia = Number(b.ganancia) || 0;
+  const recuperacion = Number(b.recuperacion);
+
   const fila = document.createElement("div");
   fila.className = "estrategia-compacta";
   fila.innerHTML = `
     <span class="punto-operando ${Number(b.abiertas) > 0 ? "on" : "off"}"></span>
     <span class="compacta-nombre">${b.nombre || `Magic ${b.magic}`}</span>
     <span class="bot-simbolo">${b.simbolo || "-"}</span>
+    <span class="compacta-ratio" title="Ganancia dividida por la peor caída que tuvo">${
+      Number.isFinite(recuperacion) ? `${recuperacion.toFixed(1)}×` : "-"
+    }</span>
     <span class="${ganancia < 0 ? "negativo" : "positivo"}">${formatearMoneda(ganancia)}</span>
   `;
   return fila;

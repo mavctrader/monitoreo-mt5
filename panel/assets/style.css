@@ -651,3 +651,4 @@ details summary { cursor: pointer; }
 }
 /* El activo también en la lista plegada, para saber de qué es cada una. */
 .estrategia-compacta .bot-simbolo { font-size: 0.64rem; flex: 0 0 auto; }
+.estrategia-compacta .compacta-ratio { font-size: 0.64rem; color: var(--texto-tenue); flex: 0 0 auto; }
