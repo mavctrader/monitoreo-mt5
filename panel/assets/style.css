@@ -625,20 +625,35 @@ details summary { cursor: pointer; }
   margin: 0.05rem 0 0.3rem;
 }
 
+/* En columnas alineadas: punto, nombre, activo, ratio, operaciones y
+   resultado. Con grid en vez de flex, los números de todas las filas caen
+   siempre en la misma vertical y se pueden comparar de un vistazo. */
 .estrategia-compacta {
-  display: flex;
+  display: grid;
+  grid-template-columns: 5px minmax(0, 1fr) 52px 38px 50px 62px;
   align-items: baseline;
-  gap: 0.4rem;
-  font-size: 0.7rem;
+  gap: 0.45rem;
+  font-size: 0.68rem;
   padding: 0.16rem 0;
+  font-variant-numeric: tabular-nums;
 }
 .estrategia-compacta .compacta-nombre {
-  flex: 1 1 auto;
   color: var(--texto-tenue);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.estrategia-compacta .bot-simbolo { font-size: 0.64rem; }
+.estrategia-compacta .compacta-ratio,
+.estrategia-compacta .compacta-ops {
+  font-size: 0.64rem;
+  color: var(--texto-tenue);
+  text-align: right;
+}
+.estrategia-compacta > :last-child { text-align: right; }
+/* El punto acá es apenas una marca de si está operando: no tiene que competir
+   con los números. */
+.estrategia-compacta .punto-operando { width: 5px; height: 5px; margin-right: 0; }
 
 /* Las que no entran entre las principales, plegadas. */
 .estrategias-resto { margin-top: 0.4rem; }
@@ -650,8 +665,6 @@ details summary { cursor: pointer; }
   padding: 0.2rem 0;
 }
 /* El activo también en la lista plegada, para saber de qué es cada una. */
-.estrategia-compacta .bot-simbolo { font-size: 0.64rem; flex: 0 0 auto; }
-.estrategia-compacta .compacta-ratio { font-size: 0.64rem; color: var(--texto-tenue); flex: 0 0 auto; }
 
 /* Activo que ya salió del portafolio: queda apagado, solo como registro. */
 .activo-retirado { opacity: 0.45; }
@@ -666,4 +679,3 @@ details summary { cursor: pointer; }
   margin-left: 0.35rem;
   color: var(--texto-tenue);
 }
-.estrategia-compacta .compacta-ops { font-size: 0.64rem; color: var(--texto-tenue); flex: 0 0 auto; }
