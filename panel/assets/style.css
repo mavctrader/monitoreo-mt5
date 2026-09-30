@@ -649,3 +649,5 @@ details summary { cursor: pointer; }
   letter-spacing: 0.04em;
   padding: 0.2rem 0;
 }
+/* El activo también en la lista plegada, para saber de qué es cada una. */
+.estrategia-compacta .bot-simbolo { font-size: 0.64rem; flex: 0 0 auto; }

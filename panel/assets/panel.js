@@ -679,6 +679,7 @@ function filaEstrategiaCompacta(b) {
   fila.innerHTML = `
     <span class="punto-operando ${Number(b.abiertas) > 0 ? "on" : "off"}"></span>
     <span class="compacta-nombre">${b.nombre || `Magic ${b.magic}`}</span>
+    <span class="bot-simbolo">${b.simbolo || "-"}</span>
     <span class="${ganancia < 0 ? "negativo" : "positivo"}">${formatearMoneda(ganancia)}</span>
   `;
   return fila;
