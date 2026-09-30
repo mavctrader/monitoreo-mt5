@@ -599,8 +599,8 @@ function renderizarEstrategias(nodo, cuenta) {
     const desplegable = document.createElement("details");
     desplegable.className = "estrategias-resto";
     const titulo = document.createElement("summary");
-    titulo.textContent = `Otras en positivo · `
-      + (enPositivo.length > resto.length ? ` de ` : "");
+    titulo.textContent = `Otras en positivo · ${resto.length}`
+      + (enPositivo.length > resto.length ? ` de ${enPositivo.length}` : "");
     desplegable.appendChild(titulo);
     for (const b of resto) desplegable.appendChild(filaEstrategiaCompacta(b));
     bloque.appendChild(desplegable);
