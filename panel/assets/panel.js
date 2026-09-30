@@ -554,7 +554,7 @@ function renderizarCuenta(cuenta) {
 // Las cuatro mejores van con todo el detalle; el resto, en una línea sola.
 const ESTRATEGIAS_PRINCIPALES = 4;
 // Cuántas más se listan en el desplegable, debajo de las principales.
-const ESTRATEGIAS_EN_LISTA = 10;
+const ESTRATEGIAS_EN_LISTA = 20;
 
 function renderizarEstrategias(nodo, cuenta) {
   const bloque = nodo.querySelector(".cuenta-objetivos");
@@ -586,7 +586,7 @@ function renderizarEstrategias(nodo, cuenta) {
   }
 
   const enPrincipal = new Set(principales.map((b) => b.magic));
-  // Solo las diez mejores de las que quedan: más abajo de ahí ya no aportan
+  // Solo las veinte mejores de las que quedan: más abajo de ahí ya no aportan
   // nada para decidir.
   const enPositivo = todas.filter((b) => !enPrincipal.has(b.magic) && Number(b.ganancia) > 0);
   const resto = enPositivo.slice(0, ESTRATEGIAS_EN_LISTA);
