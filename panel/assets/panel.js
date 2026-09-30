@@ -605,15 +605,6 @@ function renderizarEstrategias(nodo, cuenta) {
     for (const b of resto) desplegable.appendChild(filaEstrategiaCompacta(b));
     bloque.appendChild(desplegable);
   }
-
-  const total = todas.reduce((t, b) => t + (Number(b.ganancia) || 0), 0);
-  const pie = document.createElement("div");
-  pie.className = "activo-total";
-  pie.innerHTML = `
-    <span class="etiqueta">Total</span>
-    <span class="${total < 0 ? "negativo" : "positivo"}">${formatearMoneda(total)}</span>
-  `;
-  bloque.appendChild(pie);
 }
 
 // Primero las que ganan, ordenadas por ganancia sobre drawdown. Después las
