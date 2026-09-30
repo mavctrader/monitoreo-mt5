@@ -38,6 +38,9 @@ let paresCache = [];
 // sirven para que no aparezcan también en la de cuentas de fondeo.
 let idsInversor = new Set();
 
+// Aporte de cada activo al portafolio. Lo dibuja la tarjeta de capital inversor.
+let activosCache = [];
+
 // Peor caída de cada cuenta entera, con la fecha en que tocó fondo.
 let drawdownCache = [];
 
@@ -99,7 +102,7 @@ function refrescar() {
   cargarInversor().then(() => cargarBalance()).then(cargarResumen);
   // Los activos tienen que estar en memoria antes de armar las tarjetas: la
   // de una cuenta de portafolio los muestra adentro.
-  Promise.all([cargarPares(), cargarDrawdown(), cargarBots()])
+  Promise.all([cargarPares(), cargarActivos(), cargarDrawdown(), cargarBots()])
     .then(cargarCuentas);
 }
 
@@ -532,7 +535,9 @@ function renderizarCuenta(cuenta) {
 
   // Ni el portafolio ni la incubadora tienen objetivo ni colchón contra un
   // límite: en su lugar va el resultado de cada estrategia.
-  if (cuenta.tipo === "capital_inversor" || cuenta.tipo === "incubadora") {
+  if (cuenta.tipo === "capital_inversor") {
+    renderizarActivosDeLaCuenta(nodo, cuenta);
+  } else if (cuenta.tipo === "incubadora") {
     renderizarEstrategias(nodo, cuenta);
   } else {
     renderizarObjetivos(nodo, estado, reglas);
@@ -676,6 +681,112 @@ function filaEstrategiaCompacta(b) {
 
 // La caída más grande que tuvo este activo desde su mejor momento, y cuándo
 // tocó ese fondo. Se calcula sobre las operaciones ya cerradas.
+// Reemplaza el bloque de objetivos por el ranking de activos: cuál le suma
+// al portafolio y cuál le resta, con los costos de cada uno debajo.
+function renderizarActivosDeLaCuenta(nodo, cuenta) {
+  const bloque = nodo.querySelector(".cuenta-objetivos");
+  bloque.innerHTML = "";
+  bloque.classList.add("cuenta-activos");
+
+  const activos = activosCache
+    .filter((a) => a.cuenta_id === cuenta.id)
+    .sort((a, b) => Number(b.neto) - Number(a.neto));
+
+  if (!activos.length) {
+    bloque.innerHTML = `<p class="aviso-chico">Todavía no hay operaciones registradas.</p>`;
+    return;
+  }
+
+  const mayor = Math.max(...activos.map((a) => Math.abs(Number(a.neto) || 0)), 1);
+
+  const titulo = document.createElement("div");
+  titulo.className = "titulo-bloque";
+  titulo.textContent = "Aporte por activo";
+  bloque.appendChild(titulo);
+
+  for (const a of activos) bloque.appendChild(filaDeActivo(a, mayor));
+
+  const suma = (campo) => activos.reduce((t, a) => t + (Number(a[campo]) || 0), 0);
+  const hoyTotal = suma("hoy");
+  const total = document.createElement("div");
+  total.className = "activo-total";
+  total.innerHTML = `
+    <span class="etiqueta">Total del portafolio</span>
+    <span class="activo-cifras">
+      <span class="activo-hoy ${hoyTotal < 0 ? "negativo" : hoyTotal > 0 ? "positivo" : "tenue"}">hoy ${hoyTotal > 0 ? "+" : ""}${formatearMoneda(hoyTotal)}</span>
+      <span class="${suma("neto") < 0 ? "negativo" : "positivo"}">${formatearMoneda(suma("neto"))}</span>
+    </span>
+  `;
+  bloque.appendChild(total);
+
+  // La peor caída del portafolio entero. No es la suma de las caídas de cada
+  // activo: esas pasan en momentos distintos y se tapan entre ellas.
+  const dd = drawdownCache.find((d) => d.cuenta_id === cuenta.id);
+  if (dd && Number(dd.drawdown_max) !== 0) {
+    const fila = document.createElement("div");
+    fila.className = "activo-drawdown drawdown-portafolio";
+    fila.innerHTML = `
+      <span class="etiqueta" title="La caída más grande que tuvo el portafolio desde su mejor momento">Drawdown máx. del portafolio</span>
+      <span class="negativo">${formatearMoneda(dd.drawdown_max)}</span>
+      <span class="drawdown-fecha">${dd.drawdown_en ? new Date(dd.drawdown_en).toLocaleDateString("es", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "-"}</span>
+    `;
+    bloque.appendChild(fila);
+  }
+}
+
+function filaDeActivo(a, mayor) {
+  const neto = Number(a.neto) || 0;
+
+  // Mismos tres costos y los mismos colores que en el costo del par.
+  const partes = [
+    { clase: "seg-spread", etiqueta: "spread", valor: Math.abs(Number(a.spread) || 0) },
+    { clase: "seg-swap", etiqueta: "swap", valor: Math.abs(Number(a.swap) || 0) },
+    { clase: "seg-comision", etiqueta: "comisión", valor: Math.abs(Number(a.comision) || 0) },
+  ];
+  const costo = partes.reduce((t, p) => t + p.valor, 0);
+  const segmentos = costo > 0
+    ? partes
+        .filter((p) => p.valor > 0)
+        .map((p) => `<span class="${p.clase}" style="width:${(p.valor / costo) * 100}%" title="${p.etiqueta} ${formatearMoneda(p.valor)}"></span>`)
+        .join("")
+    : "";
+
+  const hoy = Number(a.hoy) || 0;
+
+  // Operando = tiene posicion abierta ahora mismo en ese activo.
+  const operando = Number(a.abiertas) > 0;
+  const magics = (a.magics || "").trim();
+
+
+  const fila = document.createElement("div");
+  fila.className = "costo-cuenta activo-bloque";
+  fila.innerHTML = `
+    <div class="costo-encabezado">
+      <span class="costo-nombre">
+        <span class="punto-operando ${operando ? "on" : "off"}" title="${operando ? `Operando: ${a.abiertas} posición${a.abiertas > 1 ? "es" : ""} abierta${a.abiertas > 1 ? "s" : ""}` : "Sin posiciones abiertas"}"></span>
+        ${a.simbolo}
+        ${magics ? `<span class="activo-magic" title="Número mágico del robot que opera este activo">#${magics}</span>` : ""}
+      </span>
+
+      <span class="activo-cifras">
+        <span class="activo-hoy ${hoy < 0 ? "negativo" : hoy > 0 ? "positivo" : "tenue"}" title="Lo que dejó hoy este activo (operaciones cerradas desde las 00:00 UTC)">hoy ${hoy > 0 ? "+" : ""}${formatearMoneda(hoy)}</span>
+        <span class="${neto < 0 ? "negativo" : "positivo"}">${formatearMoneda(neto)}</span>
+      </span>
+    </div>
+    <div class="barra-aporte"><span class="barra-relleno ${neto < 0 ? "resta" : "suma"}" style="width:${(Math.abs(neto) / mayor) * 100}%"></span></div>
+    <div class="costo-encabezado activo-costo-total">
+      <span class="etiqueta">Costo</span>
+      <span class="costo-total">${formatearMoneda(costo)}</span>
+    </div>
+    <div class="costo-barra">${segmentos}</div>
+    <div class="costo-leyenda">
+      ${partes.map((p) => `<span class="punto ${p.clase}"></span>${p.etiqueta} ${formatearMoneda(p.valor)}`).join(" ")}
+    </div>
+    ${textoDrawdown(a)}
+  `;
+  return fila;
+}
+
 function textoDrawdown(a) {
   if (a.drawdown_max == null || Number(a.drawdown_max) === 0) return "";
   const cuando = a.drawdown_en
@@ -935,6 +1046,11 @@ async function cargarInversor() {
 async function cargarDrawdown() {
   const { data, error } = await sb.from("drawdown_cuenta").select("*");
   drawdownCache = error ? [] : data;
+}
+
+async function cargarActivos() {
+  const { data, error } = await sb.from("resumen_activos").select("*");
+  activosCache = error ? [] : data;
 }
 
 async function cargarBots() {
