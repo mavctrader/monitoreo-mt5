@@ -666,3 +666,4 @@ details summary { cursor: pointer; }
   margin-left: 0.35rem;
   color: var(--texto-tenue);
 }
+.estrategia-compacta .compacta-ops { font-size: 0.64rem; color: var(--texto-tenue); flex: 0 0 auto; }

@@ -678,6 +678,7 @@ function filaEstrategia(b, mayor) {
 function filaEstrategiaCompacta(b) {
   const ganancia = Number(b.ganancia) || 0;
   const recuperacion = Number(b.recuperacion);
+  const aciertos = b.operaciones ? Math.round((b.ganadoras / b.operaciones) * 100) : null;
 
   const fila = document.createElement("div");
   fila.className = "estrategia-compacta";
@@ -688,6 +689,7 @@ function filaEstrategiaCompacta(b) {
     <span class="compacta-ratio" title="Ganancia dividida por la peor caída que tuvo">${
       Number.isFinite(recuperacion) ? `${recuperacion.toFixed(1)}×` : "-"
     }</span>
+    <span class="compacta-ops" title="Operaciones cerradas${aciertos != null ? ` · ${aciertos}% ganadoras` : ""}">${b.operaciones} ops</span>
     <span class="${ganancia < 0 ? "negativo" : "positivo"}">${formatearMoneda(ganancia)}</span>
   `;
   return fila;
