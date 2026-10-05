@@ -599,10 +599,18 @@ def autoconfigurar(cliente: Client, cuenta_id: str, login: str):
         autoconfiguradas.add(cuenta_id)
         return
 
-    equivalencia = (
-        cliente.table("brokers_prop_firm")
-        .select("prop_firm,tipo").eq("broker", cuenta["broker"]).limit(1).execute()
-    )
+    # Si la columna 'tipo' todavía no existe en Supabase, se sigue sin ella:
+    # el nombre de la prop firm no tiene por qué esperar a que corras el SQL.
+    try:
+        equivalencia = (
+            cliente.table("brokers_prop_firm")
+            .select("prop_firm,tipo").eq("broker", cuenta["broker"]).limit(1).execute()
+        )
+    except Exception:
+        equivalencia = (
+            cliente.table("brokers_prop_firm")
+            .select("prop_firm").eq("broker", cuenta["broker"]).limit(1).execute()
+        )
     if not equivalencia.data:
         return  # broker desconocido: se reintenta cuando se cargue la equivalencia
 
