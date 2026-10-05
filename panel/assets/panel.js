@@ -896,11 +896,11 @@ function renderizarObjetivos(nodo, estado, reglas) {
   let colchonTotal = null;
   if (drawdownMax != null && saldoInicial != null) {
     // Con drawdown estático el piso es fijo. Con trailing persigue al equity
-    // más alto que tuvo la cuenta, y se congela al llegar al saldo inicial:
-    // una vez que ganaste lo que el drawdown permite, ese pasa a ser el piso.
+    // más alto que tuvo la cuenta y no se detiene nunca: si llegó a 55.000, el
+    // piso queda en 52.250 aunque haya arrancado en 50.000.
     const maximo = estado.equity_maximo ?? saldoInicial;
     const piso = reglas.drawdown_trailing
-      ? Math.min(saldoInicial, maximo - drawdownMax)
+      ? maximo - drawdownMax
       : saldoInicial - drawdownMax;
 
     colchonTotal = equity - piso;

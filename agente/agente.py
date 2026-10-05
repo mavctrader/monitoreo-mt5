@@ -213,9 +213,9 @@ def piso_drawdown(cuenta_id: str, reglas) -> float:
 
     Con drawdown estático el piso es fijo: saldo inicial menos el permitido.
 
-    Con trailing, el piso persigue al equity más alto alcanzado, pero no pasa
-    del saldo inicial: una vez que ganaste lo que el drawdown permite, queda
-    congelado ahí. Por eso es el mínimo entre los dos."""
+    Con trailing el piso persigue al equity más alto alcanzado y no se
+    detiene nunca: si la cuenta llegó a 55.000, el piso queda en 52.250
+    aunque haya arrancado en 50.000."""
     saldo_inicial = reglas.get("saldo_inicial")
     drawdown_max = reglas.get("drawdown_max")
     if not saldo_inicial or not drawdown_max:
@@ -224,7 +224,7 @@ def piso_drawdown(cuenta_id: str, reglas) -> float:
     piso = saldo_inicial - drawdown_max
     if reglas.get("drawdown_trailing"):
         maximo = cache_equity_max.get(cuenta_id, saldo_inicial)
-        piso = min(saldo_inicial, maximo - drawdown_max)
+        piso = maximo - drawdown_max
     return piso
 
 
