@@ -2,14 +2,14 @@
 --
 -- Hasta ahora todas las prop firms cargadas usaban drawdown estático: el piso
 -- es fijo, saldo inicial menos lo permitido. Atlas Funded lo usa trailing: el
--- piso persigue al equity más alto que alcanzó la cuenta y se congela cuando
--- llega al saldo inicial.
+-- piso persigue al equity más alto que alcanzó la cuenta y no se detiene
+-- nunca.
 --
---   piso = min(saldo_inicial, equity_maximo - drawdown_max)
+--   piso = equity_maximo - drawdown_max
 --
--- La diferencia no es cosmética: en una cuenta de 100.000 que subió a 110.000,
--- el piso estático estaría en 95.000 y el trailing en 104.500. Tratarlo como
--- estático muestra casi el triple de colchón del que hay.
+-- La diferencia no es cosmética: en una cuenta de 50.000 que subió a 55.000,
+-- el piso estático estaría en 47.500 y el trailing en 52.250. Tratarlo como
+-- estático muestra mucho más colchón del que hay.
 --
 -- Correr en el SQL Editor de Supabase (rol postgres).
 
