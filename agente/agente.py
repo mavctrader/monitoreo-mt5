@@ -186,13 +186,60 @@ def actualizar_inicio_dia(cuenta_id: str, equity: float, reglas):
     return anterior
 
 
+# cuenta_id -> equity más alto que llegó a tener. Es la referencia del
+# drawdown trailing: el piso persigue a ese máximo.
+cache_equity_max: dict = {}
+
+# Se apaga solo si Supabase todavía no tiene la columna, para no romper la
+# subida del estado por un campo que es opcional.
+hay_equity_maximo = True
+
+
+def sembrar_cache_equity_max(cliente: Client):
+    global hay_equity_maximo
+    try:
+        filas = cliente.table("estado").select("cuenta_id,equity_maximo").execute()
+    except Exception:
+        hay_equity_maximo = False
+        print("[trailing] sin columna 'equity_maximo' todavía")
+        return
+    for f in filas.data:
+        if f.get("equity_maximo") is not None:
+            cache_equity_max[f["cuenta_id"]] = float(f["equity_maximo"])
+
+
+def piso_drawdown(cuenta_id: str, reglas) -> float:
+    """Hasta dónde puede caer el equity antes de romper la pérdida máxima.
+
+    Con drawdown estático el piso es fijo: saldo inicial menos el permitido.
+
+    Con trailing, el piso persigue al equity más alto alcanzado, pero no pasa
+    del saldo inicial: una vez que ganaste lo que el drawdown permite, queda
+    congelado ahí. Por eso es el mínimo entre los dos."""
+    saldo_inicial = reglas.get("saldo_inicial")
+    drawdown_max = reglas.get("drawdown_max")
+    if not saldo_inicial or not drawdown_max:
+        return None
+
+    piso = saldo_inicial - drawdown_max
+    if reglas.get("drawdown_trailing"):
+        maximo = cache_equity_max.get(cuenta_id, saldo_inicial)
+        piso = min(saldo_inicial, maximo - drawdown_max)
+    return piso
+
+
 def subir_estado(cliente: Client, cuenta_id: str, estado: dict, reglas=None):
+    global hay_equity_maximo
     equity = estado.get("equity")
     equity_inicio_dia, limite = (None, None)
+    equity_maximo = None
     if equity is not None:
         equity_inicio_dia, limite = actualizar_inicio_dia(cuenta_id, equity, reglas)
+        # El máximo nunca baja: es la marca de agua de la cuenta.
+        equity_maximo = max(cache_equity_max.get(cuenta_id, equity), equity)
+        cache_equity_max[cuenta_id] = equity_maximo
 
-    cliente.table("estado").upsert({
+    fila = {
         "cuenta_id": cuenta_id,
         "saldo": estado.get("saldo"),
         "equity": equity,
@@ -202,7 +249,20 @@ def subir_estado(cliente: Client, cuenta_id: str, estado: dict, reglas=None):
         "visto_en": estado.get("visto_en"),
         "equity_inicio_dia": equity_inicio_dia,
         "equity_inicio_dia_en": limite.isoformat() if limite else None,
-    }, on_conflict="cuenta_id").execute()
+    }
+    if hay_equity_maximo:
+        fila["equity_maximo"] = equity_maximo
+
+    try:
+        cliente.table("estado").upsert(fila, on_conflict="cuenta_id").execute()
+    except Exception:
+        if not hay_equity_maximo:
+            raise
+        # La columna todavía no existe: se sigue sin ella.
+        hay_equity_maximo = False
+        print("[trailing] sin columna 'equity_maximo' todavía")
+        fila.pop("equity_maximo", None)
+        cliente.table("estado").upsert(fila, on_conflict="cuenta_id").execute()
 
 
 def sincronizar_posiciones(cliente: Client, cuenta_id: str, login: str):
@@ -777,8 +837,10 @@ def vigilar_limites(cliente: Client, cache_cuentas: dict, cache_reglas: dict, cr
         drawdown_max = reglas.get("drawdown_max")
         perdida_diaria_max = reglas.get("perdida_diaria_max")
 
-        rota_total = bool(saldo_inicial and drawdown_max
-                          and (saldo_inicial - equity) >= drawdown_max)
+        # Con trailing el piso no es fijo: persigue al equity más alto, hasta
+        # congelarse en el saldo inicial.
+        piso = piso_drawdown(cuenta_id, reglas)
+        rota_total = bool(piso is not None and equity <= piso)
 
         # La pérdida diaria se mide contra el equity con el que arrancó el día.
         # Hay que detectarla en el momento: al día siguiente el contador se
@@ -826,6 +888,7 @@ def principal():
     cruzados: dict = {}
 
     sembrar_cache_inicio_dia(cliente)
+    sembrar_cache_equity_max(cliente)
 
     t_datos = t_ordenes = 0.0
 

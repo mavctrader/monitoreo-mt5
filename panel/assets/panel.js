@@ -895,7 +895,15 @@ function renderizarObjetivos(nodo, estado, reglas) {
   const drawdownMax = reglas?.drawdown_max;
   let colchonTotal = null;
   if (drawdownMax != null && saldoInicial != null) {
-    colchonTotal = equity - saldoInicial + drawdownMax;
+    // Con drawdown estático el piso es fijo. Con trailing persigue al equity
+    // más alto que tuvo la cuenta, y se congela al llegar al saldo inicial:
+    // una vez que ganaste lo que el drawdown permite, ese pasa a ser el piso.
+    const maximo = estado.equity_maximo ?? saldoInicial;
+    const piso = reglas.drawdown_trailing
+      ? Math.min(saldoInicial, maximo - drawdownMax)
+      : saldoInicial - drawdownMax;
+
+    colchonTotal = equity - piso;
     const pct = (colchonTotal / drawdownMax) * 100;
     elTextoColchonTotal.innerHTML = `${vivo(colchonTotal)} (${Math.round(pct)}%)`;
     ponerBarra(barraColchonTotal, pct);
@@ -1278,7 +1286,7 @@ async function completarReglas(c) {
       cambios[campo] = Number((saldoInicial * pct / 100).toFixed(2));
     }
   }
-  for (const campo of ["min_dias_trading", "hora_reset", "zona_horaria"]) {
+  for (const campo of ["min_dias_trading", "hora_reset", "zona_horaria", "drawdown_trailing"]) {
     if (plantilla[campo] != null && c[campo] == null) cambios[campo] = plantilla[campo];
   }
 
