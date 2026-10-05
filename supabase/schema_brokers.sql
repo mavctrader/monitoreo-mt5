@@ -48,7 +48,8 @@ insert into brokers_prop_firm (broker, prop_firm) values
   ('FundedNext Ltd', 'FundedNext'),
   ('Goat Funded Ltd.', 'Goat Funded Trader'),
   ('Five Percent Online Ltd', 'The5ers'),
-  ('Tradeslide Trading Tech Limited', 'Darwinex Zero')
+  ('Tradeslide Trading Tech Limited', 'Darwinex Zero'),
+  ('Atlas Funded Ltd.', 'Atlas Funded')
 on conflict (broker) do update set prop_firm = excluded.prop_firm;
 
 -- El tipo de cuenta también se deduce del broker. Sin esto, una cuenta nueva
