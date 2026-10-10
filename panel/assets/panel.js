@@ -684,10 +684,10 @@ function filaEstrategiaCompacta(b) {
   const aciertos = b.operaciones ? Math.round((b.ganadoras / b.operaciones) * 100) : null;
 
   const fila = document.createElement("div");
-    <span class="compacta-nombre" title="${b.nombre || ""}">#${b.magic}</span>
+  fila.className = "estrategia-compacta";
   fila.innerHTML = `
     <span class="punto-operando ${Number(b.abiertas) > 0 ? "on" : "off"}"></span>
-    <span class="compacta-nombre" title="">#</span>
+    <span class="compacta-nombre" title="${b.nombre || ""}">#${b.magic}</span>
     <span class="bot-simbolo">${b.simbolo || "-"}</span>
     <span class="compacta-ratio" title="Ganancia dividida por la peor caída que tuvo">${
       Number.isFinite(recuperacion) ? `${recuperacion.toFixed(1)}×` : "-"
