@@ -673,18 +673,21 @@ function filaEstrategia(b, mayor) {
   return fila;
 }
 
-// Las que no entran en las cuatro principales: nombre, activo, ganancia
-// sobre drawdown y resultado.
+// Las que no entran en las cuatro principales: magic, activo, ganancia sobre
+// drawdown, operaciones y resultado. Va el magic y no el nombre porque los
+// nombres son todos parecidos ("Strategy 1.2.23(1) - Improved 2.1.4") y el
+// numero es lo que identifica de verdad a cada una. El nombre queda en el
+// titulo, al pasar el mouse.
 function filaEstrategiaCompacta(b) {
   const ganancia = Number(b.ganancia) || 0;
   const recuperacion = Number(b.recuperacion);
   const aciertos = b.operaciones ? Math.round((b.ganadoras / b.operaciones) * 100) : null;
 
   const fila = document.createElement("div");
-  fila.className = "estrategia-compacta";
+    <span class="compacta-nombre" title="${b.nombre || ""}">#${b.magic}</span>
   fila.innerHTML = `
     <span class="punto-operando ${Number(b.abiertas) > 0 ? "on" : "off"}"></span>
-    <span class="compacta-nombre">${b.nombre || `Magic ${b.magic}`}</span>
+    <span class="compacta-nombre" title="">#</span>
     <span class="bot-simbolo">${b.simbolo || "-"}</span>
     <span class="compacta-ratio" title="Ganancia dividida por la peor caída que tuvo">${
       Number.isFinite(recuperacion) ? `${recuperacion.toFixed(1)}×` : "-"
