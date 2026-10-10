@@ -34,6 +34,9 @@ let temporizadorRefresco = null;
 let plantillasCache = [];
 let paresCache = [];
 
+// Retiros por cuenta: lo cobrado, lo rechazado y lo que se quedó la firma.
+let retirosCache = [];
+
 // Ids de las cuentas de capital inversor. Se llenan al cargar su tabla y
 // sirven para que no aparezcan también en la de cuentas de fondeo.
 let idsInversor = new Set();
@@ -99,7 +102,7 @@ function refrescar() {
   if (Date.now() - ultimoScrollEn < 2000) return; // estás mirando: se espera al ciclo siguiente
   // Primero las de capital inversor: la tabla de fondeo necesita saber
   // cuáles son para no listarlas dos veces.
-  cargarInversor().then(() => cargarBalance()).then(cargarResumen);
+  cargarInversor().then(() => Promise.all([cargarBalance(), cargarRetiros()])).then(() => cargarResumen());
   // Los activos tienen que estar en memoria antes de armar las tarjetas: la
   // de una cuenta de portafolio los muestra adentro.
   Promise.all([cargarPares(), cargarActivos(), cargarDrawdown(), cargarBots()])
@@ -973,7 +976,7 @@ async function cargarResumen(yaReintento = false) {
     .order("dias_inactividad", { ascending: true, nullsFirst: false });
 
   if (error) {
-    cuerpoResumen.innerHTML = `<tr><td colspan="12" class="error">${error.message}</td></tr>`;
+    cuerpoResumen.innerHTML = `<tr><td colspan="15" class="error">${error.message}</td></tr>`;
     return;
   }
 
@@ -1038,6 +1041,7 @@ async function cargarResumen(yaReintento = false) {
       <td><span class="estado-cuenta estado-${(c.estado_cuenta || "").replace(" ", "-")}">${c.estado_cuenta ?? "-"}</span></td>
       <td class="col-precio"></td>
       <td title="${c.retiro_acumulado != null ? `Retiro bruto ${formatearDolares(c.retiro_acumulado)}` : ""}">${formatearDolares(retiroNeto(c))}</td>
+      <td class="col-no-cobrado">${textoNoCobrado(c)}</td>
     `;
     fila.querySelector(".col-precio").appendChild(campoPrecio(c));
     fila.querySelector(".col-plan").appendChild(selectorDePlan(c));
@@ -1148,6 +1152,29 @@ function actualizarTituloResumen(cuentas) {
 
 // De lo retirado, la prop firm se queda con su parte: lo que vuelve es el
 // porcentaje de reparto del plan.
+// Lo que pediste y no llegó a tu bolsillo, en una sola celda: las solicitudes
+// rechazadas por un lado y la tajada de la prop firm por el otro. Son dos
+// cosas distintas — una es plata que no vas a ver nunca, la otra es el precio
+// de operar con ellos — pero las dos explican por qué cobraste menos de lo
+// que ganaste.
+function textoNoCobrado(c) {
+  const r = retirosCache.find((x) => x.cuenta_id === c.id);
+  if (!r) return "-";
+
+  const rechazado = Number(r.rechazado) || 0;
+  const firma = Number(r.se_queda_la_firma) || 0;
+  if (!rechazado && !firma) return "-";
+
+  const partes = [];
+  if (rechazado) {
+    partes.push(`<span class="negativo" title="${r.solicitudes_rechazadas} solicitud${r.solicitudes_rechazadas > 1 ? "es" : ""} rechazada${r.solicitudes_rechazadas > 1 ? "s" : ""}">${formatearDolares(rechazado)} rech.</span>`);
+  }
+  if (firma) {
+    partes.push(`<span class="tenue" title="La parte del reparto que se queda la prop firm">${formatearDolares(firma)} firma</span>`);
+  }
+  return partes.join(" · ");
+}
+
 function retiroNeto(c) {
   if (c.retiro_acumulado == null) return null;
   const reparto = plantillaDe(c)?.reparto_pct ?? 100;
@@ -1188,6 +1215,11 @@ function campoPrecio(c) {
 // contando.
 let balance = { invertido: 0, recuperado: 0 };
 
+async function cargarRetiros() {
+  const { data, error } = await sb.from("resumen_retiros").select("*");
+  retirosCache = error ? [] : data;
+}
+
 async function cargarBalance() {
   const { data } = await sb.from("balance_financiero").select("*").limit(1);
   if (data?.[0]) {
@@ -1210,8 +1242,22 @@ function filaDeTotales() {
     </td>
     <td>${formatearDolares(balance.invertido)}</td>
     <td>${formatearDolares(balance.recuperado)}</td>
+    <td class="col-no-cobrado">${totalNoCobrado()}</td>
   `;
   return fila;
+}
+
+// Lo mismo de la columna, sumado sobre todas las cuentas.
+function totalNoCobrado() {
+  const suma = (campo) => retirosCache.reduce((t, r) => t + (Number(r[campo]) || 0), 0);
+  const rechazado = suma("rechazado");
+  const firma = suma("se_queda_la_firma");
+  if (!rechazado && !firma) return "-";
+
+  const partes = [];
+  if (rechazado) partes.push(`<span class="negativo">${formatearDolares(rechazado)} rech.</span>`);
+  if (firma) partes.push(`<span class="tenue">${formatearDolares(firma)} firma</span>`);
+  return partes.join(" · ");
 }
 
 function plantillaDe(c) {

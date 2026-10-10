@@ -7,7 +7,7 @@
 <!-- El ?v= es para que el navegador no siga usando la versión vieja que tiene
      guardada. HAY QUE SUBIRLE EL NÚMERO EN CADA CAMBIO de style.css o
      panel.js: si no, el celular puede quedarse días con la copia anterior. -->
-<link rel="stylesheet" href="assets/style.css?v=36">
+<link rel="stylesheet" href="assets/style.css?v=37">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
@@ -74,6 +74,7 @@
           <th>Estado</th>
           <th title="Lo que pagaste por la cuenta">Precio</th>
           <th title="Lo que te quedó del retiro, ya descontado el reparto con la prop firm">Retirado</th>
+          <th title="Lo que pediste y no llegó a tu bolsillo: solicitudes rechazadas y la parte que se queda la prop firm">No cobrado</th>
         </tr>
       </thead>
       <tbody id="cuerpo-resumen"></tbody>
@@ -162,6 +163,6 @@
   </article>
 </template>
 
-<script src="assets/panel.js?v=36"></script>
+<script src="assets/panel.js?v=37"></script>
 </body>
 </html>

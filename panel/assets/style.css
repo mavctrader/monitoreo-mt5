@@ -679,3 +679,6 @@ details summary { cursor: pointer; }
   margin-left: 0.35rem;
   color: var(--texto-tenue);
 }
+
+/* Lo que no llegó a tu bolsillo: rechazado y la tajada de la prop firm. */
+.tabla-resumen .col-no-cobrado { white-space: nowrap; font-size: 0.72rem; }
