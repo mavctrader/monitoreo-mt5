@@ -961,7 +961,10 @@ function ponerConSigno(el, v, base) {
 // Estado general de las cuentas de fondeo (una línea por cuenta)
 // ---------------------------------------------------------------
 
-async function cargarResumen() {
+// yaReintento corta la recursión: si al completar reglas la tabla se vuelve a
+// pedir y vuelve a faltar lo mismo, se dibuja igual en vez de recargarse sin
+// fin. Pasó de verdad y dejaba el cuadro en blanco.
+async function cargarResumen(yaReintento = false) {
   let { data, error } = await sb
     .from("resumen_cuentas")
     .select("*")
@@ -985,8 +988,8 @@ async function cargarResumen() {
   for (const c of data) {
     if (await completarReglas(c)) seCompletoAlgo = true;
   }
-  if (seCompletoAlgo) {
-    cargarResumen();
+  if (seCompletoAlgo && !yaReintento) {
+    cargarResumen(true);
     cargarCuentas();
     return;
   }
@@ -1290,6 +1293,10 @@ async function completarReglas(c) {
     }
   }
   for (const campo of ["min_dias_trading", "hora_reset", "zona_horaria", "drawdown_trailing"]) {
+    // Solo los campos que la vista realmente trae. Si uno no viene en la
+    // fila, no hay forma de saber si ya está puesto: se escribiría en cada
+    // vuelta y la tabla se recargaría para siempre sin llegar a dibujarse.
+    if (!(campo in c)) continue;
     if (plantilla[campo] != null && c[campo] == null) cambios[campo] = plantilla[campo];
   }
 
