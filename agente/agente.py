@@ -489,7 +489,7 @@ def parsear_plantilla(ruta: Path):
         return None
 
     dentro = False
-    nombre = canal = simbolo = mapeo = magic = None
+    nombre = canal = simbolo = mapeo = magic = codigo_par = None
     anterior = ""
     for linea in texto.splitlines():
         linea = linea.strip()
@@ -519,22 +519,36 @@ def parsear_plantilla(ruta: Path):
             if PATRON_SIMBOLO.match(previo):
                 simbolo = previo.split(":")[-1]
 
+        clave = linea.split("=", 1)[0].strip().lower() if "=" in linea else ""
+
         # El numero magico del bot: la clave tiene que decir "magic" y el
         # valor ser entero. Una contrasena no cumple ninguna de las dos.
-        if magic is None and "=" in linea:
-            clave = linea.split("=", 1)[0].strip().lower()
-            if "magic" in clave and PATRON_MAGIC.match(valor):
-                magic = int(valor)
+        if magic is None and "magic" in clave and PATRON_MAGIC.match(valor):
+            magic = int(valor)
+
+        # El codigo de correspondencia del copiador nuevo (InpCodigoPar): el
+        # mismo numero en las dos puntas es lo que las enlaza, igual que antes
+        # lo hacia el archivo master.jsonN.
+        if codigo_par is None and "codigopar" in clave and PATRON_MAGIC.match(valor):
+            codigo_par = int(valor)
+
+        # El simbolo que replica el primario (InpSimbolos). El del secundario
+        # viene como mapeo "ORIGEN:DESTINO" y lo agarra PATRON_MAPEO arriba.
+        # Vacio en el primario significa "todos", y ahi no hay nada que poner.
+        if simbolo is None and "simbolo" in clave and valor and ":" not in valor \
+                and PATRON_SIMBOLO.match(valor):
+            simbolo = valor.split(",")[0]
 
         anterior = linea
 
-    if not nombre and not canal:
+    if not nombre and not canal and codigo_par is None:
         return None
     return {
         "nombre_ea": nombre or "",
         "canal": canal or "",
         "simbolo_operado": mapeo or simbolo or "",
         "magic": magic,
+        "codigo_par": codigo_par,
     }
 
 
@@ -556,10 +570,14 @@ def leer_plantillas():
 
 
 def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
-    """Arma y desarma el par master/slave siguiendo lo que hay en el MT5: el
-    recolector reporta qué EA tiene cada gráfico y a qué archivo master.jsonN
-    apunta, y las dos puntas del par comparten ese archivo. Si se retiran los
-    EAs de copia, el par se deshace."""
+    """Arma y desarma el par siguiendo lo que hay en el MT5. El recolector
+    reporta qué EA tiene cada gráfico y con qué parámetros, y las dos puntas
+    comparten una clave: el código de correspondencia en el copiador nuevo,
+    el archivo master.jsonN en el viejo. Si se retiran los EAs de copia, el
+    par se deshace.
+
+    Una cuenta marcada con par_manual queda afuera: hay copiadores que no
+    dejan rastro legible y ahí el par se carga a mano."""
     if cuenta_id in cache_par_manual:
         return  # el par se cargó a mano: no es asunto del agente
 
@@ -572,10 +590,20 @@ def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
         ea = cache_plantillas.get(g.get("grafico_id"))
         if not ea:
             continue
+        nombre = (ea.get("nombre_ea") or "").lower()
+
+        # Copiador nuevo (EA_SX_Primario / EA_SX_Secundario): las dos puntas
+        # comparten el código de correspondencia, y el rol sale del nombre
+        # del EA. Va primero porque es el sistema al que se está migrando.
+        if ea.get("codigo_par") is not None and ("primario" in nombre or "secundario" in nombre):
+            rol = "primario" if "primario" in nombre else "secundario"
+            grupo = f"Par {ea['codigo_par']}"
+            simbolo = ea.get("simbolo_operado") or None
+            break
+
         posible = grupo_desde_canal(ea["canal"])
         if not posible:
             continue
-        nombre = ea["nombre_ea"].lower()
         if "slave" in nombre:
             rol, grupo = "slave", posible
         elif "master" in nombre:
