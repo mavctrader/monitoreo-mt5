@@ -1178,7 +1178,7 @@ function textoNoCobrado(c) {
     partes.push(`<span class="negativo" title="Tu parte de ${r.solicitudes_rechazadas} solicitud${r.solicitudes_rechazadas > 1 ? "es" : ""} rechazada${r.solicitudes_rechazadas > 1 ? "s" : ""}: plata que ibas a cobrar y no llegó">${formatearDolares(rechazado)} rech.</span>`);
   }
   if (firma) {
-    partes.push(`<span class="tenue" title="La parte del reparto que se queda la prop firm">${formatearDolares(firma)} firma</span>`);
+    partes.push(`<span class="tenue" title="La parte del reparto que se queda la prop firm, sobre todo lo que pediste">${formatearDolares(firma)} firma</span>`);
   }
   return partes.join(" · ");
 }

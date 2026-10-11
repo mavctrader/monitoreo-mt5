@@ -70,7 +70,10 @@ select
   cuenta_id,
   sum(neto)  filter (where estado = 'aprobado')  as cobrado,
   sum(bruto) filter (where estado = 'aprobado')  as bruto_aprobado,
-  sum(bruto - coalesce(neto, bruto)) filter (where estado = 'aprobado') as se_queda_la_firma,
+  -- La parte de la prop firm sobre todo lo que pediste, salga aprobado o
+  -- rechazado: del bruto, ese porcentaje nunca fue tuyo.
+  sum(bruto - coalesce(neto, bruto))
+    filter (where estado in ('aprobado', 'rechazado')) as se_queda_la_firma,
   -- Lo rechazado se cuenta en neto: del bruto de la solicitud, una parte era
   -- de la prop firm desde el principio. Lo que perdiste es tu parte.
   sum(coalesce(neto, bruto)) filter (where estado = 'rechazado') as rechazado,
