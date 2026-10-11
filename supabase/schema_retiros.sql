@@ -71,7 +71,9 @@ select
   sum(neto)  filter (where estado = 'aprobado')  as cobrado,
   sum(bruto) filter (where estado = 'aprobado')  as bruto_aprobado,
   sum(bruto - coalesce(neto, bruto)) filter (where estado = 'aprobado') as se_queda_la_firma,
-  sum(bruto) filter (where estado = 'rechazado') as rechazado,
+  -- Lo rechazado se cuenta en neto: del bruto de la solicitud, una parte era
+  -- de la prop firm desde el principio. Lo que perdiste es tu parte.
+  sum(coalesce(neto, bruto)) filter (where estado = 'rechazado') as rechazado,
   count(*)   filter (where estado = 'rechazado')::int as solicitudes_rechazadas,
   count(*)   filter (where estado = 'aprobado')::int  as solicitudes_cobradas
 from retiros

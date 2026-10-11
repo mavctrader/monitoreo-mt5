@@ -1175,7 +1175,7 @@ function textoNoCobrado(c) {
 
   const partes = [];
   if (rechazado) {
-    partes.push(`<span class="negativo" title="${r.solicitudes_rechazadas} solicitud${r.solicitudes_rechazadas > 1 ? "es" : ""} rechazada${r.solicitudes_rechazadas > 1 ? "s" : ""}">${formatearDolares(rechazado)} rech.</span>`);
+    partes.push(`<span class="negativo" title="Tu parte de ${r.solicitudes_rechazadas} solicitud${r.solicitudes_rechazadas > 1 ? "es" : ""} rechazada${r.solicitudes_rechazadas > 1 ? "s" : ""}: plata que ibas a cobrar y no llegó">${formatearDolares(rechazado)} rech.</span>`);
   }
   if (firma) {
     partes.push(`<span class="tenue" title="La parte del reparto que se queda la prop firm">${formatearDolares(firma)} firma</span>`);
