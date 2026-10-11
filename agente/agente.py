@@ -827,6 +827,15 @@ def vigilar_limites(cliente: Client, cache_cuentas: dict, cache_reglas: dict, cr
 
         equity = estado["equity"]
 
+        # La marca de agua se actualiza también acá, no solo al subir a
+        # Supabase. Esta vuelta corre cada segundo sobre el archivo que el EA
+        # refresca cada cinco; la subida es cada sesenta. Con trailing, un
+        # pico de equity que pase dentro de ese minuto y no se registre deja
+        # el piso más abajo del que la prop firm está usando de verdad.
+        anterior = cache_equity_max.get(cuenta_id)
+        if anterior is None or equity > anterior:
+            cache_equity_max[cuenta_id] = equity
+
         # Equity en cero: la prop firm dio de baja la cuenta. Pasa cuando se
         # rompe una regla operando fuera de la VPS, así que el panel no ve la
         # caída, solo el resultado.
