@@ -913,6 +913,20 @@ function renderizarObjetivos(nodo, estado, reglas) {
     const pct = (colchonTotal / drawdownMax) * 100;
     elTextoColchonTotal.innerHTML = `${vivo(colchonTotal)} (${Math.round(pct)}%)`;
     ponerBarra(barraColchonTotal, pct);
+
+    // Con trailing el piso es un número que se mueve, y conviene tenerlo a la
+    // vista: es el precio exacto por debajo del cual se cae la cuenta. Al lado
+    // va el máximo que lo empuja, para entender por qué está donde está.
+    if (reglas.drawdown_trailing) {
+      const fila = document.createElement("div");
+      fila.className = "fila-trailing";
+      fila.innerHTML = `
+        <span class="etiqueta" title="Equity más alto alcanzado menos el drawdown permitido. Sube con cada máximo nuevo y nunca baja.">Piso trailing</span>
+        <span class="dato-vivo">${formatearMoneda(piso)}</span>
+        <span class="tenue" title="Equity más alto que alcanzó la cuenta">máx. ${formatearMoneda(maximo)}</span>
+      `;
+      nodo.querySelector(".cuenta-objetivos").appendChild(fila);
+    }
   } else {
     elTextoColchonTotal.textContent = "Sin reglas";
     ponerBarra(barraColchonTotal, 0);

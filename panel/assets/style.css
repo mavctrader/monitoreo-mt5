@@ -682,3 +682,15 @@ details summary { cursor: pointer; }
 
 /* Lo que no llegó a tu bolsillo: rechazado y la tajada de la prop firm. */
 .tabla-resumen .col-no-cobrado { white-space: nowrap; font-size: 0.72rem; }
+
+/* El piso del drawdown trailing, debajo del colchón total. */
+.fila-trailing {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.66rem;
+  margin-top: 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.fila-trailing .etiqueta { color: var(--texto-tenue); margin-right: auto; }
+.fila-trailing .tenue { color: var(--texto-tenue); }
