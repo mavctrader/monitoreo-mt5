@@ -1040,7 +1040,7 @@ async function cargarResumen(yaReintento = false) {
       <td>${textoIdeaTrade(c)}</td>
       <td><span class="estado-cuenta estado-${(c.estado_cuenta || "").replace(" ", "-")}">${c.estado_cuenta ?? "-"}</span></td>
       <td class="col-precio"></td>
-      <td title="${c.retiro_acumulado != null ? `Retiro bruto ${formatearDolares(c.retiro_acumulado)}` : ""}">${formatearDolares(retiroNeto(c))}</td>
+      <td title="${tituloRetirado(c)}">${formatearDolares(retiroNeto(c))}</td>
       <td class="col-no-cobrado">${textoNoCobrado(c)}</td>
     `;
     fila.querySelector(".col-precio").appendChild(campoPrecio(c));
@@ -1152,6 +1152,14 @@ function actualizarTituloResumen(cuentas) {
 
 // De lo retirado, la prop firm se queda con su parte: lo que vuelve es el
 // porcentaje de reparto del plan.
+function tituloRetirado(c) {
+  const r = retirosCache.find((x) => x.cuenta_id === c.id);
+  if (r && r.cobrado != null) {
+    return `${r.solicitudes_cobradas} retiro${r.solicitudes_cobradas > 1 ? "s" : ""} cobrado${r.solicitudes_cobradas > 1 ? "s" : ""} · bruto ${formatearDolares(r.bruto_aprobado)}`;
+  }
+  return c.retiro_acumulado != null ? `Retiro bruto ${formatearDolares(c.retiro_acumulado)}` : "";
+}
+
 // Lo que pediste y no llegó a tu bolsillo, en una sola celda: las solicitudes
 // rechazadas por un lado y la tajada de la prop firm por el otro. Son dos
 // cosas distintas — una es plata que no vas a ver nunca, la otra es el precio
@@ -1176,6 +1184,13 @@ function textoNoCobrado(c) {
 }
 
 function retiroNeto(c) {
+  // Si hay retiros cargados a mano, mandan ellos: traen el neto que la prop
+  // firm pagó de verdad y saben cuáles salieron rechazados. El historial de
+  // MT5 solo ve el dinero que entra y sale de la cuenta, y estas firmas
+  // pagan por fuera.
+  const r = retirosCache.find((x) => x.cuenta_id === c.id);
+  if (r && r.cobrado != null) return Number(r.cobrado);
+
   if (c.retiro_acumulado == null) return null;
   const reparto = plantillaDe(c)?.reparto_pct ?? 100;
   return Number(c.retiro_acumulado) * reparto / 100;
