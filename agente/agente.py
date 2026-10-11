@@ -437,7 +437,17 @@ cache_pares: dict = {}
 # plantilla se borre, hasta que el recolector la vuelva a escribir.
 cache_plantillas: dict = {}
 
-CARPETA_TERMINALES = Path(os.environ["APPDATA"]) / "MetaQuotes" / "Terminal"
+# Dónde viven los terminales MT5, para encontrar las plantillas de los
+# gráficos. Una instalación normal los pone bajo %APPDATA%, pero una portable
+# va donde se la descomprima (en la segunda VPS, C:\MetaTrader). Se pueden
+# sumar carpetas desde el .env con TERMINALES_PATHS, separadas por punto y
+# coma; la carpeta Common no cambia, así que el resto de los datos llega igual
+# aunque esto esté mal configurado.
+CARPETAS_TERMINALES = [Path(os.environ["APPDATA"]) / "MetaQuotes" / "Terminal"] + [
+    Path(p.strip())
+    for p in os.environ.get("TERMINALES_PATHS", "").split(";")
+    if p.strip()
+]
 PATRON_TPL = re.compile(r"MonitoreoMT5_tpl_(\d+)\.tpl$", re.IGNORECASE)
 PATRON_SIMBOLO = re.compile(r"[A-Za-z0-9._,:]{1,40}$")
 PATRON_MAPEO = re.compile(r"[A-Za-z0-9._]{2,20}:[A-Za-z0-9._]{2,20}$")
@@ -533,13 +543,16 @@ def leer_plantillas():
     las interpreta. No se borran: el recolector las sobrescribe, y si se
     borraran, un reinicio del agente dejaría los pares sin detectar hasta que
     el recolector las volviera a escribir."""
-    for ruta in CARPETA_TERMINALES.glob("*/MQL5/Profiles/Templates/MonitoreoMT5_tpl_*.tpl"):
-        m = PATRON_TPL.search(ruta.name)
-        if not m:
+    for carpeta in CARPETAS_TERMINALES:
+        if not carpeta.exists():
             continue
-        datos = parsear_plantilla(ruta)
-        if datos:
-            cache_plantillas[int(m.group(1))] = datos
+        for ruta in carpeta.glob("*/MQL5/Profiles/Templates/MonitoreoMT5_tpl_*.tpl"):
+            m = PATRON_TPL.search(ruta.name)
+            if not m:
+                continue
+            datos = parsear_plantilla(ruta)
+            if datos:
+                cache_plantillas[int(m.group(1))] = datos
 
 
 def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
