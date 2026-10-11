@@ -454,6 +454,16 @@ PATRON_MAPEO = re.compile(r"[A-Za-z0-9._]{2,20}:[A-Za-z0-9._]{2,20}$")
 PATRON_MAGIC = re.compile(r"^\d{1,18}$")
 
 
+def es_mapeo_de_simbolos(valor):
+    """"NDX100:NAS100.x" es un mapeo de símbolos; "00:00" es una hora de
+    reseteo. Tienen la misma forma, y la hora se colaba como si fuera un
+    símbolo. Los símbolos siempre llevan alguna letra, las horas nunca."""
+    if not PATRON_MAPEO.match(valor):
+        return False
+    izquierda, derecha = valor.split(":", 1)
+    return any(c.isalpha() for c in izquierda) and any(c.isalpha() for c in derecha)
+
+
 def grupo_desde_canal(canal):
     """'master.json1' -> 'Master 1'. Sin número, 'Master'."""
     m = re.search(r"master\.json(\d*)\s*$", canal or "", re.IGNORECASE)
@@ -507,8 +517,8 @@ def parsear_plantilla(ruta: Path):
 
         valor = linea.split("=", 1)[1].strip() if "=" in linea else ""
 
-        # El mapeo del slave ("NDX100:NAS100.x") es inconfundible por su forma.
-        if mapeo is None and PATRON_MAPEO.match(valor):
+        # El mapeo del slave ("NDX100:NAS100.x") se reconoce por su forma.
+        if mapeo is None and es_mapeo_de_simbolos(valor):
             mapeo = valor.split(":")[-1]
 
         pos = linea.find("master.json")
@@ -533,9 +543,11 @@ def parsear_plantilla(ruta: Path):
             codigo_par = int(valor)
 
         # El simbolo que replica el primario (InpSimbolos). El del secundario
-        # viene como mapeo "ORIGEN:DESTINO" y lo agarra PATRON_MAPEO arriba.
-        # Vacio en el primario significa "todos", y ahi no hay nada que poner.
-        if simbolo is None and "simbolo" in clave and valor and ":" not in valor \
+        # viene como mapeo "ORIGEN:DESTINO" y lo agarra es_mapeo_de_simbolos
+        # arriba. Vacio en el primario significa "todos", y ahi no hay nada
+        # que poner. La clave se compara exacta para no pisar la deteccion
+        # del copiador viejo, que saca el simbolo de otro lado.
+        if simbolo is None and clave == "inpsimbolos" and valor and ":" not in valor \
                 and PATRON_SIMBOLO.match(valor):
             simbolo = valor.split(",")[0]
 
