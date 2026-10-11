@@ -173,8 +173,12 @@ header h1 { font-size: 1.1rem; margin: 0; }
   border: 1px solid var(--borde);
   color: var(--texto-tenue);
 }
-.insignia-rol.rol-master { border-color: var(--acento); color: var(--acento); }
-.insignia-rol.rol-slave { border-color: #b18cf5; color: #b18cf5; }
+/* El que manda y el que copia, con el mismo color en los dos sistemas:
+   master/slave en el viejo, primario/secundario en el nuevo. */
+.insignia-rol.rol-master,
+.insignia-rol.rol-primario { border-color: var(--acento); color: var(--acento); }
+.insignia-rol.rol-slave,
+.insignia-rol.rol-secundario { border-color: #b18cf5; color: #b18cf5; }
 
 .aviso-slave {
   background: rgba(229, 195, 77, 0.12);

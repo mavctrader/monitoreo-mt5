@@ -547,6 +547,9 @@ def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
     recolector reporta qué EA tiene cada gráfico y a qué archivo master.jsonN
     apunta, y las dos puntas del par comparten ese archivo. Si se retiran los
     EAs de copia, el par se deshace."""
+    if cuenta_id in cache_par_manual:
+        return  # el par se cargó a mano: no es asunto del agente
+
     datos = leer_json(COMUN / f"graficos_{login}.json")
     if not datos or not datos.get("graficos"):
         return  # sin inventario de gráficos no se concluye nada
@@ -723,18 +726,34 @@ def leer_tipos(cliente: Client, cache_cuentas: dict) -> dict:
     if not cache_cuentas:
         return {}
     try:
-        filas = cliente.table("cuentas").select("id,tipo").in_("id", list(cache_cuentas.values())).execute()
+        filas = (
+            cliente.table("cuentas").select("id,tipo,par_manual")
+            .in_("id", list(cache_cuentas.values())).execute()
+        )
     except Exception as e:
         global aviso_tipos
         if not aviso_tipos:
             aviso_tipos = True
             print(f"[tipos] sin columna 'tipo' todavía, todas se tratan como fondeo: {e}")
         return {}
+
+    # De paso se anota qué cuentas tienen el par puesto a mano, para no
+    # deshacérselo en sincronizar_par.
+    cache_par_manual.clear()
+    for f in filas.data:
+        if f.get("par_manual"):
+            cache_par_manual.add(f["id"])
+
     return {f["id"]: (f.get("tipo") or TIPO_FONDEO) for f in filas.data}
 
 
 # Para no repetir el aviso de columna faltante en cada ciclo.
 aviso_tipos = False
+
+# Cuentas cuyo par se cargó a mano. El agente no les toca rol ni grupo: no
+# todos los copiadores dejan un rastro que se pueda leer, y perder el par en
+# cada ciclo sería peor que no detectarlo.
+cache_par_manual: set = set()
 
 
 # --------------------------------------------------------------------

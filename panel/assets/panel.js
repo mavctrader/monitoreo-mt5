@@ -424,7 +424,10 @@ function renderizarPar(nombreGrupo, cuentas) {
   contenedor.appendChild(encabezado);
 
   // Master primero, después las slave.
-  const orden = { master: 0, slave: 1 };
+  // El que manda arriba, el que copia abajo. Los nombres cambian según el
+  // copiador: master/slave en el sistema viejo, primario/secundario en el
+  // nuevo. La jerarquía es la misma.
+  const orden = { master: 0, primario: 0, slave: 1, secundario: 1 };
   const ordenadas = [...cuentas].sort((a, b) => (orden[a.rol] ?? 2) - (orden[b.rol] ?? 2));
   for (const cuenta of ordenadas) {
     contenedor.appendChild(renderizarCuenta(cuenta));
@@ -509,9 +512,11 @@ function renderizarCuenta(cuenta) {
   }
 
   const avisoSlave = nodo.querySelector(".aviso-slave");
-  if (cuenta.rol === "slave" && cuenta.slave_allowed === false) {
+  // El aviso vale para la punta que copia, se llame slave o secundaria.
+  const copia = cuenta.rol === "slave" || cuenta.rol === "secundario";
+  if (copia && cuenta.slave_allowed === false) {
     avisoSlave.hidden = false;
-    avisoSlave.textContent = `⚠ slave en firma con slave_allowed=FALSE (${cuenta.prop_firm || "prop firm"}, login ${cuenta.login})`;
+    avisoSlave.textContent = `⚠ ${cuenta.rol} en firma que no permite copiar (${cuenta.prop_firm || "prop firm"}, login ${cuenta.login})`;
   }
 
   const indAlgo = nodo.querySelector(".algo-trading");
