@@ -99,10 +99,17 @@ def agregar_linea(archivo: Path, linea: str):
 
 
 def logins_detectados():
+    """Las cuentas que algun terminal esta reportando.
+
+    El login 0 se descarta: es lo que devuelve MT5 cuando el terminal no
+    tiene ninguna cuenta logueada, y sin este filtro el agente lo daba de
+    alta como si fuera una cuenta mas. El recolector tambien lo frena desde
+    la version 1.03, pero esto cubre a los terminales que todavia corran una
+    anterior."""
     logins = set()
     for archivo in COMUN.glob("estado_*.json"):
         login = archivo.stem.replace("estado_", "")
-        if login.isdigit():
+        if login.isdigit() and int(login) != 0:
             logins.add(login)
     return sorted(logins)
 

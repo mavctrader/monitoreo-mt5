@@ -469,8 +469,19 @@ void ProcesarOrdenesDescargar()
 //+------------------------------------------------------------------+
 //| Ciclo principal                                                  |
 //+------------------------------------------------------------------+
+// Sin cuenta logueada MT5 devuelve login 0, y el terminal reportaria una
+// cuenta fantasma "0" que el Agente da de alta como si fuera real. Pasa al
+// desloguearse y mientras el terminal reconecta.
+bool HayCuenta()
+  {
+   return AccountInfoInteger(ACCOUNT_LOGIN) != 0;
+  }
+
 void CicloCompleto()
   {
+   if(!HayCuenta())
+      return;
+
    EscribirEstado();
    MedirSpreadsNuevos();
    EscribirPosiciones();
@@ -484,8 +495,11 @@ int OnInit()
    if(!FolderCreate(CARPETA, FILE_COMMON))
       Print("Aviso: no se pudo crear/confirmar la carpeta ", CARPETA, " error ", GetLastError());
 
-   EscribirMovimientosHistoricos();
-   CicloCompleto();
+   if(HayCuenta())
+     {
+      EscribirMovimientosHistoricos();
+      CicloCompleto();
+     }
    EventSetTimer(IntervaloSegundos);
    return(INIT_SUCCEEDED);
   }
