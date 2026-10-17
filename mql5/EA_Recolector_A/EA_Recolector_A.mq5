@@ -14,14 +14,23 @@
 //|         abrirlo en vez de perder la escritura (error 5004).      |
 //|  1.03 - sin cuenta logueada no reporta nada: antes daba de alta  |
 //|         una cuenta fantasma "0" al desloguearse el terminal.     |
+//|  1.04 - el historial se pide hasta una fecha fija y no hasta la  |
+//|         hora del servidor: en fin de semana esa hora se queda    |
+//|         en el viernes y dejaba fuera el deposito de alta.        |
 //+------------------------------------------------------------------+
 #property copyright "Centro de Monitoreo MT5"
-#property version   "1.03"
+#property version   "1.04"
 #property strict
 
 input int IntervaloSegundos = 5; // cada cuánto escribe y revisa órdenes de descarga
 
 #define CARPETA "MonitoreoMT5\\"
+
+// Limite superior del historial. No se usa TimeCurrent() porque esa es la
+// hora del ULTIMO TICK recibido: en fin de semana se queda clavada en el
+// viernes y deja fuera lo que pase despues, como el deposito con el que la
+// prop firm entrega una cuenta recien comprada.
+#define FIN_DEL_HISTORIAL D'2100.01.01'
 
 //+------------------------------------------------------------------+
 //| Utilidades                                                       |
@@ -223,7 +232,7 @@ void PublicarMovimiento(ulong ticket, datetime cuando)
 // molesta: el agente los guarda por número de ticket, sin duplicar.
 void EscribirMovimientosHistoricos()
   {
-   if(!HistorySelect(0, TimeCurrent() + 1))
+   if(!HistorySelect(0, FIN_DEL_HISTORIAL))
       return;
 
    int total = HistoryDealsTotal();
@@ -248,7 +257,7 @@ void EscribirOperacionesNuevas()
    if(GlobalVariableCheck(nombreCursor))
       desde = (datetime)GlobalVariableGet(nombreCursor);
 
-   if(!HistorySelect(desde, TimeCurrent() + 1))
+   if(!HistorySelect(desde, FIN_DEL_HISTORIAL))
       return;
 
    datetime maxCierre = desde;
@@ -315,7 +324,7 @@ void EscribirOperacionesNuevas()
             volumenEntrada += HistoryDealGetDouble(t2, DEAL_VOLUME);
            }
         }
-      HistorySelect(desde, TimeCurrent() + 1); // restaurar el conjunto de deals tras la consulta por posición
+      HistorySelect(desde, FIN_DEL_HISTORIAL); // restaurar el conjunto de deals tras la consulta por posición
 
       // La comisión de apertura se reparte según el volumen que cierra este
       // deal: si la posición se cierra en partes, cada parte se lleva la

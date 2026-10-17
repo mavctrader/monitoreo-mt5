@@ -30,6 +30,12 @@ input int IntervaloSegundos = 5; // cada cuánto escribe y revisa órdenes de de
 // cerró antes de que existiera el campo, y el Agente la reconoce por eso.
 #define VERSION "Incubadora A"
 
+// Limite superior del historial. No se usa TimeCurrent() porque esa es la
+// hora del ULTIMO TICK recibido: en fin de semana se queda clavada en el
+// viernes y deja fuera lo que pase despues, como el deposito con el que la
+// prop firm entrega una cuenta recien comprada.
+#define FIN_DEL_HISTORIAL D'2100.01.01'
+
 //+------------------------------------------------------------------+
 //| Utilidades                                                       |
 //+------------------------------------------------------------------+
@@ -240,7 +246,7 @@ void PublicarMovimiento(ulong ticket, datetime cuando)
 // molesta: el agente los guarda por número de ticket, sin duplicar.
 void EscribirMovimientosHistoricos()
   {
-   if(!HistorySelect(0, TimeCurrent() + 1))
+   if(!HistorySelect(0, FIN_DEL_HISTORIAL))
       return;
 
    int total = HistoryDealsTotal();
@@ -265,7 +271,7 @@ void EscribirOperacionesNuevas()
    if(GlobalVariableCheck(nombreCursor))
       desde = (datetime)GlobalVariableGet(nombreCursor);
 
-   if(!HistorySelect(desde, TimeCurrent() + 1))
+   if(!HistorySelect(desde, FIN_DEL_HISTORIAL))
       return;
 
    datetime maxCierre = desde;
@@ -335,7 +341,7 @@ void EscribirOperacionesNuevas()
             volumenEntrada += HistoryDealGetDouble(t2, DEAL_VOLUME);
            }
         }
-      HistorySelect(desde, TimeCurrent() + 1); // restaurar el conjunto de deals tras la consulta por posición
+      HistorySelect(desde, FIN_DEL_HISTORIAL); // restaurar el conjunto de deals tras la consulta por posición
 
       // La comisión de apertura se reparte según el volumen que cierra este
       // deal: si la posición se cierra en partes, cada parte se lleva la
