@@ -120,8 +120,36 @@ def logins_detectados():
 
 def conectar() -> Client:
     cliente = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    cliente.auth.sign_in_with_password({"email": AGENTE_EMAIL, "password": AGENTE_PASSWORD})
+    autenticar(cliente)
     return cliente
+
+
+def autenticar(cliente: Client):
+    cliente.auth.sign_in_with_password({"email": AGENTE_EMAIL, "password": AGENTE_PASSWORD})
+
+
+def sesion_vencida(error) -> bool:
+    """Supabase firma la sesión con un token que vence.
+
+    Cuando vence, TODAS las llamadas fallan con PGRST303 "JWT expired", y
+    como el bucle principal atrapa los errores y sigue, el agente queda vivo
+    reintentando a ciegas: la tarea de Windows informa "corriendo" y el panel
+    se congela sin que nadie se entere. Pasó, y estuvo cinco horas así."""
+    texto = str(error)
+    return "PGRST303" in texto or "JWT expired" in texto
+
+
+def renovar_si_vencio(cliente: Client, error) -> bool:
+    """Rehace el login si el error fue por token vencido."""
+    if not sesion_vencida(error):
+        return False
+    try:
+        autenticar(cliente)
+        print("[sesion] token vencido, autenticado de nuevo")
+        return True
+    except Exception as e:
+        print(f"[sesion] no se pudo renovar: {e}")
+        return False
 
 
 # --------------------------------------------------------------------
@@ -692,6 +720,11 @@ def sincronizar_datos(cliente: Client, cache_cuentas: dict, cache_reglas: dict):
             sincronizar_par(cliente, cuenta_id, login)
             autoconfigurar(cliente, cuenta_id, login)
         except Exception as e:
+            # Un token vencido no es un problema de esta cuenta sino de la
+            # sesión entera: se deja subir para que el bucle principal
+            # renueve el login en vez de repetir el mismo error por cuenta.
+            if sesion_vencida(e):
+                raise
             print(f"[datos] cuenta {login} ({versiones.get(login, VERSION_BASE)}): {e}")
 
 
@@ -991,20 +1024,23 @@ def principal():
                 cache_reglas = leer_reglas(cliente, cache_cuentas)
                 cache_tipos.update(leer_tipos(cliente, cache_cuentas))
             except Exception as e:
-                print(f"[datos] error: {e}")
+                if not renovar_si_vencio(cliente, e):
+                    print(f"[datos] error: {e}")
             t_datos = ahora
 
         if ahora - t_ordenes >= INTERVALO_ORDENES:
             try:
                 procesar_ordenes(cliente, cache_cuentas)
             except Exception as e:
-                print(f"[ordenes] error: {e}")
+                if not renovar_si_vencio(cliente, e):
+                    print(f"[ordenes] error: {e}")
             t_ordenes = ahora
 
         try:
             vigilar_limites(cliente, cache_cuentas, cache_reglas, cruzados)
         except Exception as e:
-            print(f"[vigilancia] error: {e}")
+            if not renovar_si_vencio(cliente, e):
+                print(f"[vigilancia] error: {e}")
 
         time.sleep(INTERVALO_VIGILANCIA)
 
