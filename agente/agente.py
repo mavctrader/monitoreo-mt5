@@ -67,6 +67,17 @@ COMUN = Path(os.environ.get(
     Path(os.environ["APPDATA"]) / "MetaQuotes" / "Terminal" / "Common" / "Files" / "MonitoreoMT5",
 ))
 
+# Nombre corto de esta máquina, que se antepone al nombre de cada par.
+#
+# El código de correspondencia del copiador identifica un par dentro de UN
+# terminal, no entre máquinas: dos VPS pueden tener las dos un "código 1" y
+# entonces los dos pares se llamarían igual y el panel los mezclaría en un
+# solo cuadro. Pasó. Lo mismo vale para el master.jsonN del copiador viejo.
+#
+# Vacío por defecto: una instalación que no lo configure se comporta igual
+# que antes.
+PREFIJO_PARES = os.environ.get("PREFIJO_PARES", "")
+
 INTERVALO_VIGILANCIA = 1   # segundos: límites de prop firm, local
 INTERVALO_ORDENES = 5      # segundos: entregar/confirmar parar-arrancar-descargar
 INTERVALO_DATOS = 60       # segundos: estado, posiciones, operaciones, bots, reglas
@@ -659,6 +670,11 @@ def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
             continue
         simbolo = ea["simbolo_operado"] or None
         break
+
+    # El nombre del par lleva delante el de la máquina: dos VPS pueden usar
+    # el mismo código de correspondencia sin que sus pares se confundan.
+    if grupo:
+        grupo = PREFIJO_PARES + grupo
 
     if cache_pares.get(cuenta_id) == (rol, grupo, simbolo):
         return
