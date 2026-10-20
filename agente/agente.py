@@ -1002,47 +1002,74 @@ def marcar_violacion(cliente: Client, cuenta_id: str, login: str, motivo: str):
 # Bucle principal
 # --------------------------------------------------------------------
 
+SEGUNDOS_REINTENTO_ARRANQUE = 30
+
+
+def arrancar() -> Client:
+    """Conecta y siembra las cachés, reintentando hasta lograrlo.
+
+    Antes esto corría sin protección: si Supabase tardaba en responder justo
+    en ese momento, la excepción mataba el proceso y la VPS se quedaba sin
+    agente hasta que alguien lo notara. Un problema de red de medio minuto
+    no puede tumbar algo que tiene que correr solo."""
+    while True:
+        try:
+            cliente = conectar()
+            sembrar_cache_inicio_dia(cliente)
+            sembrar_cache_equity_max(cliente)
+            return cliente
+        except Exception as e:
+            print(f"[arranque] no se pudo conectar, se reintenta en {SEGUNDOS_REINTENTO_ARRANQUE}s: {e}")
+            time.sleep(SEGUNDOS_REINTENTO_ARRANQUE)
+
+
 def principal():
-    cliente = conectar()
+    cliente = arrancar()
     cache_cuentas: dict = {}
     cache_reglas: dict = {}
     cruzados: dict = {}
-
-    sembrar_cache_inicio_dia(cliente)
-    sembrar_cache_equity_max(cliente)
 
     t_datos = t_ordenes = 0.0
 
     print(f"Agente conectado. Leyendo {COMUN}")
 
     while True:
-        ahora = time.monotonic()
-
-        if ahora - t_datos >= INTERVALO_DATOS:
-            try:
-                sincronizar_datos(cliente, cache_cuentas, cache_reglas)
-                cache_reglas = leer_reglas(cliente, cache_cuentas)
-                cache_tipos.update(leer_tipos(cliente, cache_cuentas))
-            except Exception as e:
-                if not renovar_si_vencio(cliente, e):
-                    print(f"[datos] error: {e}")
-            t_datos = ahora
-
-        if ahora - t_ordenes >= INTERVALO_ORDENES:
-            try:
-                procesar_ordenes(cliente, cache_cuentas)
-            except Exception as e:
-                if not renovar_si_vencio(cliente, e):
-                    print(f"[ordenes] error: {e}")
-            t_ordenes = ahora
-
+        # Red de seguridad: los tres bloques de adentro ya atrapan lo suyo,
+        # pero cualquier error fuera de ellos terminaba el proceso y la VPS
+        # se quedaba sin agente. Acá se anota y se sigue en la vuelta
+        # siguiente, pase lo que pase.
         try:
-            vigilar_limites(cliente, cache_cuentas, cache_reglas, cruzados)
+            ahora = time.monotonic()
+
+            if ahora - t_datos >= INTERVALO_DATOS:
+                try:
+                    sincronizar_datos(cliente, cache_cuentas, cache_reglas)
+                    cache_reglas = leer_reglas(cliente, cache_cuentas)
+                    cache_tipos.update(leer_tipos(cliente, cache_cuentas))
+                except Exception as e:
+                    if not renovar_si_vencio(cliente, e):
+                        print(f"[datos] error: {e}")
+                t_datos = ahora
+
+            if ahora - t_ordenes >= INTERVALO_ORDENES:
+                try:
+                    procesar_ordenes(cliente, cache_cuentas)
+                except Exception as e:
+                    if not renovar_si_vencio(cliente, e):
+                        print(f"[ordenes] error: {e}")
+                t_ordenes = ahora
+
+            try:
+                vigilar_limites(cliente, cache_cuentas, cache_reglas, cruzados)
+            except Exception as e:
+                if not renovar_si_vencio(cliente, e):
+                    print(f"[vigilancia] error: {e}")
+
         except Exception as e:
-            if not renovar_si_vencio(cliente, e):
-                print(f"[vigilancia] error: {e}")
+            print(f"[bucle] error inesperado: {e}")
 
         time.sleep(INTERVALO_VIGILANCIA)
+
 
 
 if __name__ == "__main__":
