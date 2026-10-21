@@ -673,8 +673,11 @@ def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
 
     # El nombre del par lleva delante el de la máquina: dos VPS pueden usar
     # el mismo código de correspondencia sin que sus pares se confundan.
-    if grupo:
-        grupo = PREFIJO_PARES + grupo
+    #
+    # El separador lo pone el agente. Poner el espacio en el .env no sirve:
+    # la librería que lo lee recorta los espacios del final del valor.
+    if grupo and PREFIJO_PARES:
+        grupo = f"{PREFIJO_PARES} {grupo}"
 
     if cache_pares.get(cuenta_id) == (rol, grupo, simbolo):
         return
