@@ -157,7 +157,7 @@ async function cargarCuentas() {
     tarjetas.push({
       clave: `par:${nombre}`,
       cuentas: delGrupo,
-      costo: costoDelPar(nombre),
+      costo: costoDelPar(nombre, delGrupo),
       dibujar: () => renderizarPar(nombre, delGrupo),
     });
   }
@@ -208,9 +208,18 @@ window.addEventListener("resize", () => {
   if (!arrastrando && tarjetas.length) dibujarEnColumnas();
 });
 
-function costoDelPar(nombreGrupo) {
-  return paresCache
-    .filter((p) => p.grupo === nombreGrupo)
+// Las filas de costo que le corresponden a un par: las de su grupo, pero
+// solo de las cuentas que hoy forman parte de él. Una cuenta retirada
+// conserva el grupo en la base y sin esto seguiria sumando.
+function filasDelPar(nombreGrupo, cuentas) {
+  const logins = new Set((cuentas || []).map((c) => Number(c.login)));
+  return paresCache.filter(
+    (p) => p.grupo === nombreGrupo && logins.has(Number(p.login))
+  );
+}
+
+function costoDelPar(nombreGrupo, cuentas) {
+  return filasDelPar(nombreGrupo, cuentas)
     .reduce(
       (a, p) =>
         a +
@@ -433,7 +442,7 @@ function renderizarPar(nombreGrupo, cuentas) {
     contenedor.appendChild(renderizarCuenta(cuenta));
   }
 
-  const costos = renderizarCostosDelPar(nombreGrupo);
+  const costos = renderizarCostosDelPar(nombreGrupo, cuentas);
   if (costos) contenedor.appendChild(costos);
 
   return contenedor;
@@ -441,8 +450,12 @@ function renderizarPar(nombreGrupo, cuentas) {
 
 // Lo que el par deja en el camino: una barra por cuenta, partida en spread,
 // swap y comisión, más el total de las dos.
-function renderizarCostosDelPar(nombreGrupo) {
-  const filas = paresCache.filter((p) => p.grupo === nombreGrupo);
+// El costo se arma con las cuentas que el cuadro está mostrando, no con todo
+// lo que lleve ese nombre de grupo. Una cuenta retirada deja de reportar y
+// sale del cuadro, pero su grupo le queda puesto en la base: sin este filtro
+// seguía sumando su histórico al costo de un par al que ya no pertenece.
+function renderizarCostosDelPar(nombreGrupo, cuentas) {
+  const filas = filasDelPar(nombreGrupo, cuentas);
   if (!filas.length) return null;
 
   const bloque = document.createElement("div");
