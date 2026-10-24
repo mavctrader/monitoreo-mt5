@@ -5,6 +5,7 @@
 --
 --   Blueberry Funded  objetivo 8%  diaria 4%  total 10%  3 días mínimos
 --   Bullfy            objetivo 8%  diaria 4%  total 11%  5 días mínimos
+--   Bullfy F2         objetivo 5%, el resto igual que su F1
 --
 -- Las dos con drawdown estático, reset 00:00 UTC y reparto 80/20.
 --
@@ -16,7 +17,8 @@ insert into reglas_plantillas
    reparto_pct, drawdown_trailing)
 values
   ('Blueberry Funded', '2 Step PRIME',     'Challenge F1', 4, 10, 8, 3, '00:00', 'UTC', 80, false),
-  ('Bullfy',           'BULL PRIME 50/50', 'Challenge F1', 4, 11, 8, 5, '00:00', 'UTC', 80, false)
+  ('Bullfy',           'BULL PRIME 50/50', 'Challenge F1', 4, 11, 8, 5, '00:00', 'UTC', 80, false),
+  ('Bullfy',           'BULL PRIME 50/50', 'Challenge F2', 4, 11, 5, 5, '00:00', 'UTC', 80, false)
 on conflict (prop_firm, plan, fase) do update set
   perdida_diaria_max_pct = excluded.perdida_diaria_max_pct,
   drawdown_max_pct       = excluded.drawdown_max_pct,
