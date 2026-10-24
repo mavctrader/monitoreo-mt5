@@ -18,7 +18,8 @@ insert into reglas_plantillas
    objetivo_fase_pct, min_dias_trading, reparto_pct, drawdown_trailing)
 values
   ('The5ers',    '$5K de Alto Riesgo',  'Challenge F1', 5, 10, 8, 3, 80, false),
-  ('FundedNext', 'Stellar Lite 2-Step', 'Challenge F1', 4, 10, 8, 2, 80, false)
+  ('FundedNext', 'Stellar Lite 2-Step', 'Challenge F1', 4, 10, 8, 2, 80, false),
+  ('FundedNext', 'Stellar Lite 2-Step', 'Challenge F2', 4, 10, 4, 2, 80, false)
 on conflict (prop_firm, plan, fase) do update set
   perdida_diaria_max_pct = excluded.perdida_diaria_max_pct,
   drawdown_max_pct       = excluded.drawdown_max_pct,
