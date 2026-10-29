@@ -17,6 +17,7 @@ insert into reglas_plantillas
    reparto_pct, drawdown_trailing)
 values
   ('Blueberry Funded', '2 Step PRIME',     'Challenge F1', 4, 10, 8, 3, '00:00', 'UTC', 80, false),
+  ('Blueberry Funded', '2 Step PRIME',     'Challenge F2', 4, 10, 6, 3, '00:00', 'UTC', 80, false),
   ('Bullfy',           'BULL PRIME 50/50', 'Challenge F1', 4, 11, 8, 5, '00:00', 'UTC', 80, false),
   ('Bullfy',           'BULL PRIME 50/50', 'Challenge F2', 4, 11, 5, 5, '00:00', 'UTC', 80, false)
 on conflict (prop_firm, plan, fase) do update set
