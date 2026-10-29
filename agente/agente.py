@@ -78,6 +78,13 @@ COMUN = Path(os.environ.get(
 # que antes.
 PREFIJO_PARES = os.environ.get("PREFIJO_PARES", "")
 
+# Un archivo del recolector que no se actualiza hace este rato no es una
+# cuenta conectada: es lo que quedó cuando la sacaron del terminal. Se borra.
+# Generoso a propósito: un reinicio de la VPS o un MT5 que tarda en levantar
+# no tienen que disparar la limpieza, y si se borra de más no se pierde nada
+# -el recolector reescribe esos archivos enteros cada pocos segundos.
+MINUTOS_ARCHIVO_MUERTO = int(os.environ.get("MINUTOS_ARCHIVO_MUERTO", "30"))
+
 INTERVALO_VIGILANCIA = 1   # segundos: límites de prop firm, local
 INTERVALO_ORDENES = 5      # segundos: entregar/confirmar parar-arrancar-descargar
 INTERVALO_DATOS = 60       # segundos: estado, posiciones, operaciones, bots, reglas
@@ -109,6 +116,39 @@ def agregar_linea(archivo: Path, linea: str):
         f.write(linea + "\n")
 
 
+def archivo_vivo(archivo: Path) -> bool:
+    """Si el recolector lo tocó hace poco, la cuenta está conectada acá."""
+    try:
+        return (time.time() - archivo.stat().st_mtime) < MINUTOS_ARCHIVO_MUERTO * 60
+    except OSError:
+        return False
+
+
+def limpiar_archivos_muertos():
+    """Borra los retratos que dejó una cuenta que ya no está en el terminal.
+
+    El recolector escribe estado_<cuenta>.json mientras la cuenta está
+    logueada; al sacarla deja de escribirlo, pero el archivo queda con los
+    últimos valores. El agente lo leía igual y subía ese retrato viejo cada
+    minuto. Si además esa cuenta se mudó a otra VPS, los dos agentes escriben
+    sobre la misma fila y se pisan: una consulta daba un saldo y la siguiente
+    otro. Pasó con una cuenta de FTMO.
+
+    Solo se borran los tres archivos que son fotos del momento y se reescriben
+    enteros cada pocos segundos. Los .jsonl de operaciones y movimientos NO se
+    tocan: son histórico que puede estar todavía sin subir."""
+    for patron in ("estado_*.json", "posiciones_*.json", "graficos_*.json"):
+        for archivo in COMUN.glob(patron):
+            if archivo_vivo(archivo):
+                continue
+            try:
+                archivo.unlink()
+                print(f"[limpieza] {archivo.name}: sin actualizarse hace más de "
+                      f"{MINUTOS_ARCHIVO_MUERTO} min, borrado")
+            except OSError as e:
+                print(f"[limpieza] no se pudo borrar {archivo.name}: {e}")
+
+
 def logins_detectados():
     """Las cuentas que algun terminal esta reportando.
 
@@ -116,11 +156,14 @@ def logins_detectados():
     tiene ninguna cuenta logueada, y sin este filtro el agente lo daba de
     alta como si fuera una cuenta mas. El recolector tambien lo frena desde
     la version 1.03, pero esto cubre a los terminales que todavia corran una
-    anterior."""
+    anterior.
+
+    Y solo cuentan los archivos vivos: uno que el recolector no toca hace
+    rato es el resto de una cuenta que ya se sacó del terminal."""
     logins = set()
     for archivo in COMUN.glob("estado_*.json"):
         login = archivo.stem.replace("estado_", "")
-        if login.isdigit() and int(login) != 0:
+        if login.isdigit() and int(login) != 0 and archivo_vivo(archivo):
             logins.add(login)
     return sorted(logins)
 
@@ -739,6 +782,7 @@ def anotar_version(login: str, estado: dict):
 
 
 def sincronizar_datos(cliente: Client, cache_cuentas: dict, cache_reglas: dict):
+    limpiar_archivos_muertos()
     leer_plantillas()
     for login in logins_detectados():
         estado = leer_json(COMUN / f"estado_{login}.json")
