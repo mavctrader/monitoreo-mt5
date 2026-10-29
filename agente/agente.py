@@ -457,9 +457,10 @@ def sincronizar_bots(cliente: Client, cuenta_id: str, login: str):
             "grafico_id": g["grafico_id"],
             "simbolo": g.get("simbolo"),
             "periodo": g.get("periodo"),
-            "nombre": (cache_plantillas.get(g.get("grafico_id")) or {}).get("nombre_ea"),
+            "nombre": (plantilla_de(login, g.get("grafico_id")) or {}).get("nombre_ea"),
             # Con esto el panel sabe que bot hizo cada operacion.
-            "magic": (cache_plantillas.get(g.get("grafico_id")) or {}).get("magic"),
+            "magic": (plantilla_de(login, g.get("grafico_id")) or {}).get("magic"),
+
         }
         for g in datos.get("graficos", [])
     ]
@@ -479,7 +480,7 @@ def sincronizar_bots(cliente: Client, cuenta_id: str, login: str):
 # cuenta_id -> (rol, grupo, simbolo) ya escrito, para no repetir el update.
 cache_pares: dict = {}
 
-# grafico_id -> datos del EA leídos de su plantilla. Se conservan aunque la
+# (cuenta, grafico) -> datos del EA leídos de su plantilla. Se conservan aunque la
 # plantilla se borre, hasta que el recolector la vuelva a escribir.
 cache_plantillas: dict = {}
 
@@ -494,10 +495,33 @@ CARPETAS_TERMINALES = [Path(os.environ["APPDATA"]) / "MetaQuotes" / "Terminal"] 
     for p in os.environ.get("TERMINALES_PATHS", "").split(";")
     if p.strip()
 ]
-PATRON_TPL = re.compile(r"MonitoreoMT5_tpl_(\d+)\.tpl$", re.IGNORECASE)
+# La plantilla lleva cuenta y gráfico: MonitoreoMT5_tpl_<cuenta>_<gráfico>.tpl
+#
+# El número de gráfico solo es único DENTRO de su terminal. Con terminales
+# portables -que son copias de una misma carpeta- varios arrastran los mismos
+# números, y como este agente lee las plantillas de todos los terminales
+# juntas, sin la cuenta no hay forma de saber cuál es cuál: una pisaba a la
+# otra y seis cuentas de tres pares distintos quedaron en un solo grupo.
+#
+# Las plantillas con el nombre viejo, sin cuenta, se ignoran a propósito. Un
+# terminal sin recompilar se queda sin detección de par, que es preferible a
+# que se agrupe mal.
+PATRON_TPL = re.compile(r"MonitoreoMT5_tpl_(\d+)_(\d+)\.tpl$", re.IGNORECASE)
 PATRON_SIMBOLO = re.compile(r"[A-Za-z0-9._,:]{1,40}$")
 PATRON_MAPEO = re.compile(r"[A-Za-z0-9._]{2,20}:[A-Za-z0-9._]{2,20}$")
 PATRON_MAGIC = re.compile(r"^\d{1,18}$")
+
+
+def plantilla_de(login, grafico_id):
+    """Lo que el recolector leyó del gráfico <grafico_id> de la cuenta <login>.
+
+    Pedir siempre la cuenta además del gráfico es lo que evita que una cuenta
+    termine leyendo la plantilla de otra. Si falta, se devuelve None y esa
+    cuenta se queda sin detección — que es lo correcto: mejor no saber que
+    saber mal."""
+    if grafico_id is None:
+        return None
+    return cache_plantillas.get((int(login), int(grafico_id)))
 
 
 def es_mapeo_de_simbolos(valor):
@@ -624,7 +648,8 @@ def leer_plantillas():
                 continue
             datos = parsear_plantilla(ruta)
             if datos:
-                cache_plantillas[int(m.group(1))] = datos
+                # La clave es (cuenta, gráfico): el gráfico solo no alcanza.
+                cache_plantillas[(int(m.group(1)), int(m.group(2)))] = datos
 
 
 def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
@@ -645,7 +670,7 @@ def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
 
     rol = grupo = simbolo = None
     for g in datos["graficos"]:
-        ea = cache_plantillas.get(g.get("grafico_id"))
+        ea = plantilla_de(login, g.get("grafico_id"))
         if not ea:
             continue
         nombre = (ea.get("nombre_ea") or "").lower()

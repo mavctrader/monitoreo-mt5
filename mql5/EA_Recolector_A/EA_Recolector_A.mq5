@@ -17,9 +17,12 @@
 //|  1.04 - el historial se pide hasta una fecha fija y no hasta la  |
 //|         hora del servidor: en fin de semana esa hora se queda    |
 //|         en el viernes y dejaba fuera el deposito de alta.        |
+//|  1.05 - la plantilla del grafico lleva el numero de cuenta en el |
+//|         nombre. El numero de grafico se repite entre terminales  |
+//|         clonados y las cuentas se leian las plantillas entre si. |
 //+------------------------------------------------------------------+
 #property copyright "Centro de Monitoreo MT5"
-#property version   "1.04"
+#property version   "1.05"
 #property strict
 
 input int IntervaloSegundos = 5; // cada cuánto escribe y revisa órdenes de descarga
@@ -371,10 +374,18 @@ void EscribirOperacionesNuevas()
 // qué EA hay puesto y con qué parámetros. El EA no la puede leer él mismo:
 // MT5 la guarda en MQL5\Profiles\Templates\ y desde MQL5 solo se puede leer
 // MQL5\Files\. El Agente (Python) sí llega, la lee y la borra.
+// El nombre lleva la cuenta además del gráfico.
+//
+// El número de gráfico identifica un gráfico DENTRO de su terminal, no en
+// toda la máquina. Con terminales portables -que son copias de una carpeta-
+// varios arrastran los mismos números, y el Agente, que lee las plantillas
+// de todos los terminales juntas, terminaba leyendo la de otra cuenta: seis
+// cuentas de tres pares distintos quedaron agrupadas en uno solo.
 void GuardarPlantilla(long chartId)
   {
-   ChartSaveTemplate(chartId, "MonitoreoMT5_tpl_" + IntegerToString(chartId));
+   ChartSaveTemplate(chartId, "MonitoreoMT5_tpl_" + LoginStr() + "_" + IntegerToString(chartId));
   }
+
 
 //+------------------------------------------------------------------+
 //| Inventario de gráficos abiertos (qué bots hay cargados)          |
