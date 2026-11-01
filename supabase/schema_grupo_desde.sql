@@ -59,6 +59,12 @@ left join lateral (
 ) s on true
 where c.grupo is not null;
 
+-- Desde el 30/10/2026 Supabase ya no da permiso de lectura automático a lo
+-- nuevo que se crea en "public": una vista recreada hoy nace sin él y el panel
+-- respondería "permission denied". El panel y el agente entran con usuario y
+-- contraseña, o sea el rol "authenticated"; nadie lee como "anon".
+grant select on public.resumen_pares to authenticated;
+
 -- Arreglo puntual de la cuenta que motivó esto. El 30/10 pasó del "B Par 2"
 -- al "B Par 3", así que su par actual arranca ese día. Medido: de sus
 -- spreads, 3.631,06 son del 23/10 y antes (de cuando estaba en otro par en
