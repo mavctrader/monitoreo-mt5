@@ -523,6 +523,10 @@ def sincronizar_bots(cliente: Client, cuenta_id: str, login: str):
 # cuenta_id -> (rol, grupo, simbolo) ya escrito, para no repetir el update.
 cache_pares: dict = {}
 
+# Se apaga solo si Supabase todavía no tiene la columna, para no romper la
+# detección del par por un campo que es opcional.
+hay_grupo_desde = True
+
 # (cuenta, grafico) -> datos del EA leídos de su plantilla. Se conservan aunque la
 # plantilla se borre, hasta que el recolector la vuelva a escribir.
 cache_plantillas: dict = {}
@@ -704,6 +708,7 @@ def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
 
     Una cuenta marcada con par_manual queda afuera: hay copiadores que no
     dejan rastro legible y ahí el par se carga a mano."""
+    global hay_grupo_desde
     if cuenta_id in cache_par_manual:
         return  # el par se cargó a mano: no es asunto del agente
 
@@ -753,7 +758,34 @@ def sincronizar_par(cliente: Client, cuenta_id: str, login: str):
     cambios = {"rol": rol, "grupo": grupo}
     if simbolo:
         cambios["simbolo_principal"] = simbolo
-    cliente.table("cuentas").update(cambios).eq("id", cuenta_id).execute()
+
+    # Desde cuándo las operaciones de esta cuenta son de ESTE par. Sin la
+    # fecha, una cuenta reutilizada le arrastra al par nuevo todo el costo
+    # del anterior: pasó el 29/10 con una demo que cambió de VPS y le metió
+    # al par 3.631 de spread de operaciones de otra semana.
+    #
+    # Se compara contra lo que hay en la base, no contra la caché. La caché
+    # arranca vacía, y marcar la fecha en cada arranque del agente le borraría
+    # al par en curso todo el costo que lleve acumulado en cada reinicio.
+    if hay_grupo_desde:
+        anterior = (cliente.table("cuentas").select("grupo")
+                    .eq("id", cuenta_id).limit(1).execute())
+        if anterior.data and anterior.data[0].get("grupo") != grupo:
+            cambios["grupo_desde"] = (
+                datetime.now(timezone.utc).isoformat() if grupo else None
+            )
+
+    try:
+        cliente.table("cuentas").update(cambios).eq("id", cuenta_id).execute()
+    except Exception:
+        if "grupo_desde" not in cambios:
+            raise
+        # La columna todavía no existe: se sigue sin ella.
+        hay_grupo_desde = False
+        print("[par] sin columna 'grupo_desde' todavía")
+        del cambios["grupo_desde"]
+        cliente.table("cuentas").update(cambios).eq("id", cuenta_id).execute()
+
     cache_pares[cuenta_id] = (rol, grupo, simbolo)
     print(f"[par] cuenta {login}: {rol or 'sin par'} {grupo or ''} {simbolo or ''}".strip())
 

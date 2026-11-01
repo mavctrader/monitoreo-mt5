@@ -15,7 +15,11 @@ const METODOS = ["Media Cross", "Stand Alone"];
 
 const SEGUNDOS_SEÑAL_VIDA = 90;    // más que esto sin novedades = puntito en rojo
 const SEGUNDOS_SIN_TARJETA = 600;  // más que esto = la cuenta deja de tener tarjeta
-const INTERVALO_REFRESCO_MS = 10_000;
+// El agente sube los datos una vez por minuto (INTERVALO_DATOS en agente.py),
+// así que refrescar más seguido vuelve a bajar lo mismo. A 10 s el panel
+// gastaba 41 MB de salida por hora abierto y la cuenta de Supabase se pasó de
+// la cuota gratuita (5,5 GB sobre 5); a 30 s son 14 MB. Medido el 31/10/2026.
+const INTERVALO_REFRESCO_MS = 30_000;
 
 const vistaLogin = document.getElementById("vista-login");
 const vistaPanel = document.getElementById("vista-panel");
