@@ -10,10 +10,14 @@
 --
 -- La idea de trade queda vacía a propósito: Orion no publica un tope por
 -- operación y la regla de la mitad de la diaria es de WSFunded, no del resto.
--- El reparto y las fases 2 y fondeada también quedan fuera: esa pantalla es
--- solo de la fase 1.
+-- Las fases 2 y fondeada también quedan fuera: esa pantalla es solo de la
+-- fase 1.
 --
--- Corrido el 16/11/2026.
+-- El reparto es el 80% que publica el centro de ayuda de la propia firma
+-- (orionfunded.com, consultado el 19/11/2026); sube al 90% al entrar en el
+-- plan de escalado, que todavía no es el caso.
+--
+-- Corrido el 16/11/2026; el reparto, el 19/11/2026.
 
 insert into reglas_plantillas
   (prop_firm, plan, fase, perdida_diaria_max_pct, drawdown_max_pct,
@@ -21,12 +25,13 @@ insert into reglas_plantillas
    hora_reset, zona_horaria, drawdown_trailing)
 values
   ('Orion Funded', 'Orion Standard Swing', 'Challenge F1', 5, 8, 8, 4,
-   null, null, '00:06', 'UTC', false)
+   null, 80, '00:06', 'UTC', false)
 on conflict (prop_firm, plan, fase) do update set
   perdida_diaria_max_pct = excluded.perdida_diaria_max_pct,
   drawdown_max_pct       = excluded.drawdown_max_pct,
   objetivo_fase_pct      = excluded.objetivo_fase_pct,
   min_dias_trading       = excluded.min_dias_trading,
+  reparto_pct            = excluded.reparto_pct,
   hora_reset             = excluded.hora_reset,
   zona_horaria           = excluded.zona_horaria,
   drawdown_trailing      = excluded.drawdown_trailing;
