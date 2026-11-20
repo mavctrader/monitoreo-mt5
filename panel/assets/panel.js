@@ -663,6 +663,12 @@ function ordenEstrategias(a, b) {
   return rb - ra;
 }
 
+// El título lleva el número mágico, que es lo que identifica al bot dentro
+// del terminal, y la línea de abajo el código de la estrategia que hay en
+// ese gráfico (el nombre del .ex5, que el agente lee de la plantilla).
+// Antes el magic salía dos veces -arriba y abajo- y el código no salía
+// nunca. Si el gráfico todavía no tiene código leído, esa línea no muestra
+// nada: repetir el magic no aporta.
 function filaEstrategia(b, mayor) {
   const ganancia = Number(b.ganancia) || 0;
   const hoy = Number(b.hoy) || 0;
@@ -677,7 +683,7 @@ function filaEstrategia(b, mayor) {
     <div class="costo-encabezado">
       <span class="costo-nombre">
         <span class="punto-operando ${operando ? "on" : "off"}" title="${operando ? `${b.abiertas} posición${b.abiertas > 1 ? "es" : ""} abierta${b.abiertas > 1 ? "s" : ""}` : "Sin posiciones abiertas"}"></span>
-        ${b.nombre || `Magic ${b.magic}`}
+        Magic ${b.magic}
       </span>
       <span class="activo-cifras">
         <span class="activo-hoy ${hoy < 0 ? "negativo" : hoy > 0 ? "positivo" : "tenue"}" title="Lo que dejó hoy (operaciones cerradas desde las 00:00 UTC)">hoy ${hoy > 0 ? "+" : ""}${formatearMoneda(hoy)}</span>
@@ -686,7 +692,9 @@ function filaEstrategia(b, mayor) {
     </div>
     <div class="estrategia-datos">
       <span class="bot-simbolo">${b.simbolo || "-"}</span>
-      <span class="bot-magic">#${b.magic}</span>
+      ${b.nombre
+        ? `<span class="bot-magic" title="Código de la estrategia que hay en el gráfico">${b.nombre}</span>`
+        : ""}
       ${ganancia > 0 && Number.isFinite(recuperacion)
         ? `<span title="Ganancia dividida por la peor caída que tuvo">${recuperacion.toFixed(1)}×</span>`
         : ""}
